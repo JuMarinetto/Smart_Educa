@@ -1,4 +1,4 @@
-import { Component, inject, OnInit } from '@angular/core';
+import { Component, inject, OnInit, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { DragDropModule, CdkDragDrop, moveItemInArray, transferArrayItem } from '@angular/cdk/drag-drop';
 import { LucideAngularModule } from 'lucide-angular';
@@ -15,172 +15,117 @@ import { Content } from '../../../../core/models/content.model';
       <header class="builder-header">
         <div>
           <h1>Construtor de Curso</h1>
-          <p>Arraste conteúdos da biblioteca para montar o roteiro do curso.</p>
+          <p>Monte o roteiro do curso. Use as setas no mobile ou arraste no desktop.</p>
         </div>
         <button class="btn-primary" (click)="saveCourse()">Salvar Roteiro</button>
       </header>
 
       <div class="builder-grid">
-        <!-- Coluna Esquerda: Roteiro do Curso -->
         <div class="column">
           <h3>Roteiro do Curso</h3>
           <div 
             cdkDropList 
-            #courseList="cdkDropList"
             [cdkDropListData]="courseContents"
-            [cdkDropListConnectedTo]="[libraryList]"
             class="drop-list"
             (cdkDropListDropped)="drop($event)">
             
             <div class="empty-state" *ngIf="courseContents.length === 0">
-              Arraste conteúdos aqui para começar
+              Adicione conteúdos para começar
             </div>
 
-            <div class="content-item" *ngFor="let item of courseContents" cdkDrag>
-              <div class="item-handle" cdkDragHandle>
+            <div class="content-item" *ngFor="let item of courseContents; let i = index" cdkDrag [cdkDragDisabled]="isMobile">
+              <div class="item-handle" cdkDragHandle *ngIf="!isMobile">
                 <lucide-icon name="GripVertical" size="16"></lucide-icon>
               </div>
+              
+              <!-- Modo Mobile: Botões de Ordenação -->
+              <div class="mobile-controls" *ngIf="isMobile">
+                <button (click)="move(i, -1)" [disabled]="i === 0"><lucide-icon name="ChevronUp" size="14"></lucide-icon></button>
+                <button (click)="move(i, 1)" [disabled]="i === courseContents.length - 1"><lucide-icon name="ChevronDown" size="14"></lucide-icon></button>
+              </div>
+
               <div class="item-info">
                 <span class="title">{{item.titulo_tema}}</span>
                 <span class="version">v{{item.versao}}</span>
               </div>
-              <div class="item-status" *ngIf="hasNewVersion(item)">
-                <lucide-icon name="AlertCircle" size="16" class="warning-icon"></lucide-icon>
-                <button class="btn-update" (click)="updateVersion(item)">Atualizar</button>
-              </div>
+              
               <button class="btn-remove" (click)="removeItem(item)">×</button>
             </div>
           </div>
         </div>
 
-        <!-- Coluna Direita: Biblioteca -->
         <div class="column">
-          <h3>Biblioteca de Conteúdos</h3>
-          <div 
-            cdkDropList 
-            #libraryList="cdkDropList"
-            [cdkDropListData]="libraryContents"
-            [cdkDropListConnectedTo]="[courseList]"
-            class="drop-list"
-            (cdkDropListDropped)="drop($event)">
-            
-            <div class="content-item library" *ngFor="let item of libraryContents" cdkDrag>
+          <h3>Biblioteca</h3>
+          <div class="drop-list library">
+            <div class="content-item library" *ngFor="let item of libraryContents">
               <div class="item-info">
                 <span class="title">{{item.titulo_tema}}</span>
-                <span class="desc">{{item.descricao}}</span>
               </div>
-              <span class="version">v{{item.versao}}</span>
+              <button class="btn-add" (click)="addItem(item)">
+                <lucide-icon name="Plus" size="16"></lucide-icon>
+              </button>
             </div>
           </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Modal de Alerta de Versão -->
-    <div class="modal-overlay" *ngIf="showUpdateModal">
-      <div class="modal-content">
-        <h3>Nova Versão Disponível</h3>
-        <p>O conteúdo <strong>{{pendingUpdate?.titulo_tema}}</strong> possui uma versão mais recente (v2.0). Deseja atualizar a referência no curso?</p>
-        <div class="modal-actions">
-          <button class="btn-outline" (click)="showUpdateModal = false">Manter Atual</button>
-          <button class="btn-primary" (click)="confirmUpdate()">Atualizar para v2.0</button>
         </div>
       </div>
     </div>
   `,
   styles: [`
     .builder-container { padding: 2rem; margin-left: 280px; }
-    .builder-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; }
     .builder-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; }
-    .column h3 { font-size: 1rem; margin-bottom: 1rem; color: var(--text-muted); }
-    
-    .drop-list { 
-      min-height: 500px; 
-      background: var(--bg-card); 
-      border: 2px dashed var(--border); 
-      border-radius: 12px; 
-      padding: 1rem;
-    }
-    
-    .content-item { 
-      background: white; 
-      border: 1px solid var(--border); 
-      border-radius: 8px; 
-      padding: 12px; 
-      margin-bottom: 8px; 
-      display: flex; 
-      align-items: center; 
-      gap: 12px;
-      box-shadow: var(--shadow-sm);
-    }
-    
+    .drop-list { min-height: 400px; background: var(--bg-card); border: 2px dashed var(--border); border-radius: 12px; padding: 1rem; }
+    .content-item { background: white; border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 8px; display: flex; align-items: center; gap: 12px; }
     .item-handle { cursor: grab; color: var(--text-muted); }
-    .item-info { flex: 1; display: flex; flex-direction: column; }
+    .mobile-controls { display: flex; flex-direction: column; gap: 4px; }
+    .mobile-controls button { padding: 2px; background: var(--bg-main); border-radius: 4px; color: var(--text-muted); }
+    .item-info { flex: 1; }
     .title { font-weight: 600; font-size: 0.9rem; }
-    .desc { font-size: 0.75rem; color: var(--text-muted); }
-    .version { font-size: 0.7rem; font-weight: 700; color: var(--primary); background: rgba(37, 99, 235, 0.1); padding: 2px 6px; border-radius: 4px; width: fit-content; }
+    .version { font-size: 0.7rem; color: var(--primary); background: rgba(37, 99, 235, 0.1); padding: 2px 6px; border-radius: 4px; }
+    .btn-add { color: var(--primary); background: none; }
     
-    .warning-icon { color: var(--warning); }
-    .btn-update { font-size: 0.7rem; color: var(--primary); font-weight: 700; background: none; border: none; text-decoration: underline; }
-    .btn-remove { background: none; border: none; font-size: 1.2rem; color: var(--text-muted); cursor: pointer; }
-    
-    .empty-state { text-align: center; color: var(--text-muted); margin-top: 4rem; font-size: 0.9rem; }
-    
-    .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 1000; }
-    .modal-content { background: white; padding: 2rem; border-radius: 12px; max-width: 400px; }
-    .modal-actions { display: flex; justify-content: flex-end; gap: 12px; margin-top: 1.5rem; }
+    @media (max-width: 1024px) {
+      .builder-container { margin-left: 0; padding: 1rem; }
+      .builder-grid { grid-template-columns: 1fr; }
+    }
   `]
 })
 export class CourseBuilderComponent implements OnInit {
   private knowledgeService = inject(KnowledgeService);
-
   libraryContents: Content[] = [];
   courseContents: Content[] = [];
-  showUpdateModal = false;
-  pendingUpdate: Content | null = null;
+  isMobile = false;
+
+  @HostListener('window:resize')
+  onResize() {
+    this.isMobile = window.innerWidth < 1024;
+  }
 
   ngOnInit() {
-    this.knowledgeService.getContentsByArea('').subscribe(data => {
-      this.libraryContents = data;
-    });
+    this.onResize();
+    this.knowledgeService.getContentsByArea('').subscribe(data => this.libraryContents = data);
   }
 
   drop(event: CdkDragDrop<Content[]>) {
-    if (event.previousContainer === event.container) {
-      moveItemInArray(event.container.data, event.previousIndex, event.currentIndex);
-    } else {
-      transferArrayItem(
-        event.previousContainer.data,
-        event.container.data,
-        event.previousIndex,
-        event.currentIndex
-      );
-    }
+    moveItemInArray(this.courseContents, event.previousIndex, event.currentIndex);
   }
 
-  hasNewVersion(item: Content) {
-    // Simulação: Em um cenário real, compararia com o banco
-    return item.titulo_tema === 'Segurança da Informação' && item.versao === 1;
+  move(index: number, direction: number) {
+    const newIndex = index + direction;
+    const item = this.courseContents.splice(index, 1)[0];
+    this.courseContents.splice(newIndex, 0, item);
   }
 
-  updateVersion(item: Content) {
-    this.pendingUpdate = item;
-    this.showUpdateModal = true;
-  }
-
-  confirmUpdate() {
-    if (this.pendingUpdate) {
-      this.pendingUpdate.versao = 2.0;
-      this.showUpdateModal = false;
+  addItem(item: Content) {
+    if (!this.courseContents.find(c => c.id === item.id)) {
+      this.courseContents.push(item);
     }
   }
 
   removeItem(item: Content) {
-    this.courseContents = this.courseContents.filter(i => i.id !== item.id);
-    this.libraryContents.push(item);
+    this.courseContents = this.courseContents.filter(c => c.id !== item.id);
   }
 
   saveCourse() {
-    console.log('Salvando roteiro...', this.courseContents);
+    console.log('Salvando...', this.courseContents);
   }
 }

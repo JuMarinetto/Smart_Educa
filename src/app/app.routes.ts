@@ -7,12 +7,14 @@ import { KnowledgeAreasComponent } from './pages/admin/knowledge-areas/knowledge
 import { ContentsComponent } from './pages/admin/contents/contents.component';
 import { CourseBuilderComponent } from './pages/admin/courses/course-builder/course-builder.component';
 import { CoursePlayerComponent } from './pages/courses/course-player/course-player.component';
+import { AssessmentTakeComponent } from './pages/assessments/assessment-take/assessment-take.component';
 
 export const routes: Routes = [
   { path: '', redirectTo: 'dashboard', pathMatch: 'full' },
   { path: 'dashboard', component: DashboardComponent },
   { path: 'courses', component: CoursesComponent },
   { path: 'course-player/:id', component: CoursePlayerComponent },
+  { path: 'assessment/:id', component: AssessmentTakeComponent },
   { path: 'certifications', component: CertificationsComponent },
   { path: 'settings', component: SettingsComponent },
   { path: 'admin/knowledge-areas', component: KnowledgeAreasComponent },
