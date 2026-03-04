@@ -73,7 +73,7 @@ import { validatePasswordComplexity } from '../../core/utils/password-validator'
                 <span [class.valid]="hasUpper">ABC</span>
                 <span [class.valid]="hasLower">abc</span>
                 <span [class.valid]="hasNumber">123</span>
-                <span [class.valid]="hasSpecial">!@#</span>
+                <span [class.valid]="hasSpecial">!&#64;#</span>
                 <span [class.valid]="isLongEnough">8+</span>
               </div>
             </div>
