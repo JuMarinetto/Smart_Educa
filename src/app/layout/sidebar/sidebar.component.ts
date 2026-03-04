@@ -1,29 +1,30 @@
 import { Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { RouterModule } from '@angular/router';
 import { LucideAngularModule, BookOpen, CheckCircle, Lock, ChevronRight, LayoutDashboard, Users, Settings, Award } from 'lucide-angular';
 
 @Component({
   selector: 'app-sidebar',
   standalone: true,
-  imports: [CommonModule, LucideAngularModule],
+  imports: [CommonModule, RouterModule, LucideAngularModule],
   template: `
     <aside class="sidebar">
-      <div class="logo">
+      <div class="logo" routerLink="/">
         <div class="logo-icon">N</div>
         <span class="logo-text">NEXUS<span>LMS</span></span>
       </div>
 
       <nav class="nav-section">
         <p class="section-title">PRINCIPAL</p>
-        <div class="nav-item active">
+        <div class="nav-item" routerLink="/dashboard" routerLinkActive="active">
           <lucide-icon [name]="'LayoutDashboard'" size="18"></lucide-icon>
           <span>Dashboard</span>
         </div>
-        <div class="nav-item">
+        <div class="nav-item" routerLink="/courses" routerLinkActive="active">
           <lucide-icon [name]="'BookOpen'" size="18"></lucide-icon>
           <span>Meus Cursos</span>
         </div>
-        <div class="nav-item">
+        <div class="nav-item" routerLink="/certifications" routerLinkActive="active">
           <lucide-icon [name]="'Award'" size="18"></lucide-icon>
           <span>Certificações</span>
         </div>
@@ -54,7 +55,7 @@ import { LucideAngularModule, BookOpen, CheckCircle, Lock, ChevronRight, LayoutD
       </nav>
 
       <div class="sidebar-footer">
-        <div class="nav-item">
+        <div class="nav-item" routerLink="/settings" routerLinkActive="active">
           <lucide-icon [name]="'Settings'" size="18"></lucide-icon>
           <span>Configurações</span>
         </div>
@@ -73,12 +74,14 @@ import { LucideAngularModule, BookOpen, CheckCircle, Lock, ChevronRight, LayoutD
       position: fixed;
       left: 0;
       top: 0;
+      z-index: 100;
     }
     .logo {
       display: flex;
       align-items: center;
       gap: 12px;
       margin-bottom: 2.5rem;
+      cursor: pointer;
     }
     .logo-icon {
       width: 32px;
@@ -117,12 +120,13 @@ import { LucideAngularModule, BookOpen, CheckCircle, Lock, ChevronRight, LayoutD
       transition: var(--transition);
       cursor: pointer;
       margin-bottom: 4px;
+      text-decoration: none;
     }
     .nav-item:hover, .nav-item.active {
       background: rgba(255, 255, 255, 0.05);
       color: white;
     }
-    .nav-item.active { color: var(--primary); }
+    .nav-item.active { color: var(--primary); background: rgba(37, 99, 235, 0.1); }
 
     .module-header {
       display: flex;
