@@ -23,7 +23,7 @@ import { KnowledgeArea } from '../../../core/models/knowledge-area.model';
       
       <div class="sub-nodes" *ngIf="expanded[node.id] && node.sub_areas?.length">
         <app-tree-view 
-          [nodes]="node.sub_areas" 
+          [nodes]="node.sub_areas || []" 
           [selectedId]="selectedId"
           (select)="select.emit($event)">
         </app-tree-view>
