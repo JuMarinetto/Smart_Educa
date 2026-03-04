@@ -6,11 +6,13 @@ import { SettingsComponent } from './pages/settings/settings.component';
 import { KnowledgeAreasComponent } from './pages/admin/knowledge-areas/knowledge-areas.component';
 import { ContentsComponent } from './pages/admin/contents/contents.component';
 import { CourseBuilderComponent } from './pages/admin/courses/course-builder/course-builder.component';
+import { CoursePlayerComponent } from './pages/courses/course-player/course-player.component';
 
 export const routes: Routes = [
   { path: '', redirectTo: 'dashboard', pathMatch: 'full' },
   { path: 'dashboard', component: DashboardComponent },
   { path: 'courses', component: CoursesComponent },
+  { path: 'course-player/:id', component: CoursePlayerComponent },
   { path: 'certifications', component: CertificationsComponent },
   { path: 'settings', component: SettingsComponent },
   { path: 'admin/knowledge-areas', component: KnowledgeAreasComponent },
