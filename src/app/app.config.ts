@@ -2,7 +2,7 @@ import { ApplicationConfig, importProvidersFrom } from '@angular/core';
 import { provideRouter } from '@angular/router';
 import { provideHttpClient } from '@angular/common/http';
 import { routes } from './app.routes';
-import { LucideAngularModule, LayoutDashboard, BookOpen, Award, Settings, ChevronRight, CheckCircle, Lock, Users, Clock, TrendingUp, Moon, Sun, Plus, Edit, Trash, FileText, Layers, Shield, Smartphone } from 'lucide-angular';
+import { LucideAngularModule, LayoutDashboard, BookOpen, Award, Settings, ChevronRight, CheckCircle, Lock, Users, Clock, TrendingUp, Moon, Sun, Plus, Edit, Trash, FileText, Layers, Shield, Smartphone, PenTool, GripVertical, ChevronDown, Dot, AlertCircle } from 'lucide-angular';
 import { provideNgxMask } from 'ngx-mask';
 
 export const appConfig: ApplicationConfig = {
@@ -14,7 +14,8 @@ export const appConfig: ApplicationConfig = {
       LucideAngularModule.pick({ 
         LayoutDashboard, BookOpen, Award, Settings, ChevronRight, 
         CheckCircle, Lock, Users, Clock, TrendingUp, Moon, Sun,
-        Plus, Edit, Trash, FileText, Layers, Shield, Smartphone
+        Plus, Edit, Trash, FileText, Layers, Shield, Smartphone,
+        PenTool, GripVertical, ChevronDown, Dot, AlertCircle
       })
     )
   ]

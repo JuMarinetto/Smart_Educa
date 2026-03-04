@@ -5,6 +5,7 @@ import { CertificationsComponent } from './pages/certifications/certifications.c
 import { SettingsComponent } from './pages/settings/settings.component';
 import { KnowledgeAreasComponent } from './pages/admin/knowledge-areas/knowledge-areas.component';
 import { ContentsComponent } from './pages/admin/contents/contents.component';
+import { CourseBuilderComponent } from './pages/admin/courses/course-builder/course-builder.component';
 
 export const routes: Routes = [
   { path: '', redirectTo: 'dashboard', pathMatch: 'full' },
@@ -13,5 +14,6 @@ export const routes: Routes = [
   { path: 'certifications', component: CertificationsComponent },
   { path: 'settings', component: SettingsComponent },
   { path: 'admin/knowledge-areas', component: KnowledgeAreasComponent },
-  { path: 'admin/contents', component: ContentsComponent }
+  { path: 'admin/contents', component: ContentsComponent },
+  { path: 'admin/course-builder', component: CourseBuilderComponent }
 ];

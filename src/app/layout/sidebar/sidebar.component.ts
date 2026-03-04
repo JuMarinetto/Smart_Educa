@@ -1,7 +1,7 @@
 import { Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
-import { LucideAngularModule, BookOpen, CheckCircle, Lock, ChevronRight, LayoutDashboard, Users, Settings, Award, Plus, Edit, Trash, FileText, Layers } from 'lucide-angular';
+import { LucideAngularModule, BookOpen, CheckCircle, Lock, ChevronRight, LayoutDashboard, Users, Settings, Award, Plus, Edit, Trash, FileText, Layers, PenTool } from 'lucide-angular';
 
 @Component({
   selector: 'app-sidebar',
@@ -35,6 +35,10 @@ import { LucideAngularModule, BookOpen, CheckCircle, Lock, ChevronRight, LayoutD
         <div class="nav-item" routerLink="/admin/contents" routerLinkActive="active">
           <lucide-icon [name]="'FileText'" size="18"></lucide-icon>
           <span>Biblioteca de Conteúdos</span>
+        </div>
+        <div class="nav-item" routerLink="/admin/course-builder" routerLinkActive="active">
+          <lucide-icon [name]="'PenTool'" size="18"></lucide-icon>
+          <span>Construtor de Cursos</span>
         </div>
       </nav>
 
