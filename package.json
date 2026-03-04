@@ -22,6 +22,7 @@
     "@angular/router": "^17.3.0",
     "@supabase/supabase-js": "^2.98.0",
     "lucide-angular": "^0.577.0",
+    "ngx-mask": "^21.0.1",
     "rxjs": "~7.8.0",
     "tslib": "^2.3.0",
     "zone.js": "~0.14.3"
