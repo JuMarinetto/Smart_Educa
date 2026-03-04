@@ -7,12 +7,13 @@ import { from, map } from 'rxjs';
   providedIn: 'root'
 })
 export class CourseService {
-  private supabase = inject(SupabaseService).client;
+  private supabaseService = inject(SupabaseService);
+  private supabase = this.supabaseService.client;
 
   getCourses() {
     return from(
       this.supabase.from('courses').select('*').eq('status', 'ATIVO')
-    ).pipe(map(res => res.data as Course[]));
+    ).pipe(map(res => (res.data as Course[]) || []));
   }
 
   getCourseStructure(courseId: string) {
@@ -28,7 +29,7 @@ export class CourseService {
         `)
         .eq('id_curso', courseId)
         .order('nome_topico')
-    ).pipe(map(res => res.data as any[]));
+    ).pipe(map(res => (res.data as any[]) || []));
   }
 
   async enrollStudent(classId: string, studentId: string) {

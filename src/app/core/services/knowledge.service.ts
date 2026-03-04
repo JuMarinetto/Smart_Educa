@@ -8,7 +8,8 @@ import { from, map } from 'rxjs';
   providedIn: 'root'
 })
 export class KnowledgeService {
-  private supabase = inject(SupabaseService).client;
+  private supabaseService = inject(SupabaseService);
+  private supabase = this.supabaseService.client;
 
   getAreas() {
     return from(
@@ -16,17 +17,20 @@ export class KnowledgeService {
         .from('knowledge_areas')
         .select('*')
         .order('area_conhecimento')
-    ).pipe(map(res => res.data as KnowledgeArea[]));
+    ).pipe(map(res => (res.data as KnowledgeArea[]) || []));
   }
 
   getContentsByArea(areaId: string) {
-    return from(
-      this.supabase
-        .from('contents')
-        .select('*')
-        .eq('id_area_conhecimento', areaId)
-        .eq('is_latest', true)
-    ).pipe(map(res => res.data as Content[]));
+    const query = this.supabase
+      .from('contents')
+      .select('*')
+      .eq('is_latest', true);
+    
+    if (areaId) {
+      query.eq('id_area_conhecimento', areaId);
+    }
+
+    return from(query).pipe(map(res => (res.data as Content[]) || []));
   }
 
   async createArea(area: Partial<KnowledgeArea>) {
