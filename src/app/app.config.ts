@@ -1,8 +1,10 @@
 import { ApplicationConfig, importProvidersFrom } from '@angular/core';
 import { provideRouter } from '@angular/router';
+import { provideCharts, withDefaultRegisterables } from 'ng2-charts';
 import { provideHttpClient } from '@angular/common/http';
+import { provideAnimations } from '@angular/platform-browser/animations';
 import { routes } from './app.routes';
-import { LucideAngularModule, LayoutDashboard, BookOpen, Award, Settings, ChevronRight, CheckCircle, Lock, Users, Clock, TrendingUp, Moon, Sun, Plus, Edit, Trash, FileText, Layers, Shield, Smartphone, PenTool, GripVertical, ChevronDown, Dot, AlertCircle, Play, ChevronUp } from 'lucide-angular';
+import { LucideAngularModule, AlertCircle, AlertTriangle, ArrowLeft, Award, Bell, BookOpen, Briefcase, Calendar, Check, CheckCircle, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Clock, Compass, Dot, Download, Edit, Edit2, Eye, FileCheck, FileText, Filter, Folder, GraduationCap, GripVertical, HelpCircle, Home, Info, Layers, Layout, LayoutDashboard, Loader2, Lock, LogIn, LogOut, Mail, Moon, PenTool, Play, Plus, RotateCcw, Search, SearchX, Send, Settings, Shield, Smartphone, Star, Sun, Tag, Trash, Trash2, TrendingUp, User, Users, X } from 'lucide-angular';
 import { provideNgxMask } from 'ngx-mask';
 
 export const appConfig: ApplicationConfig = {
@@ -10,14 +12,12 @@ export const appConfig: ApplicationConfig = {
     provideRouter(routes),
     provideHttpClient(),
     provideNgxMask(),
+    provideAnimations(),
     importProvidersFrom(
-      LucideAngularModule.pick({ 
-        LayoutDashboard, BookOpen, Award, Settings, ChevronRight, 
-        CheckCircle, Lock, Users, Clock, TrendingUp, Moon, Sun,
-        Plus, Edit, Trash, FileText, Layers, Shield, Smartphone,
-        PenTool, GripVertical, ChevronDown, Dot, AlertCircle, Play,
-        ChevronUp
+      LucideAngularModule.pick({
+        AlertCircle, AlertTriangle, ArrowLeft, Award, Bell, BookOpen, Briefcase, Calendar, Check, CheckCircle, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Clock, Compass, Dot, Download, Edit, Edit2, Eye, FileCheck, FileText, Filter, Folder, GraduationCap, GripVertical, HelpCircle, Home, Info, Layers, Layout, LayoutDashboard, Loader2, Lock, LogIn, LogOut, Mail, Moon, PenTool, Play, Plus, RotateCcw, Search, SearchX, Send, Settings, Shield, Smartphone, Star, Sun, Tag, Trash, Trash2, TrendingUp, User, Users, X
       })
-    )
+    ),
+    provideCharts(withDefaultRegisterables())
   ]
 };

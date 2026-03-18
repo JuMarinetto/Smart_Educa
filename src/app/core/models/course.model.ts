@@ -1,8 +1,8 @@
-export type CourseStatus = 'ATIVO' | 'INATIVO';
+export type CourseStatus = 'Ativo' | 'Inativo';
 
 export interface Course {
   id: string;
-  id_professor: string;
+  id_professor: string | null;
   titulo: string;
   status: CourseStatus;
   created_at: string;
@@ -16,10 +16,14 @@ export interface Topic {
   contents?: CourseContent[];
 }
 
+export type CourseItemType = 'conteudo' | 'questao';
+
 export interface CourseContent {
   id: string;
   id_topico: string;
-  id_conteudo: string;
+  id_conteudo?: string;
+  id_questao?: string;
+  tipo: CourseItemType;
   ordem: number;
-  versao_conteudo: number;
+  versao_conteudo?: number;
 }

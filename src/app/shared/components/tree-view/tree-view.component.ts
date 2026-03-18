@@ -19,13 +19,19 @@ import { KnowledgeArea } from '../../../core/models/knowledge-area.model';
         </lucide-icon>
         <lucide-icon [name]="node.permite_conteudo ? 'FileText' : 'Folder'" size="16" class="type-icon"></lucide-icon>
         <span>{{node.area_conhecimento}}</span>
+        <div class="node-actions" *ngIf="selectedId === node.id">
+          <lucide-icon name="Edit2" size="14" class="action-icon edit-icon" (click)="onEdit($event, node)" title="Editar Área"></lucide-icon>
+          <lucide-icon name="Trash2" size="14" class="action-icon delete-icon" (click)="onDelete($event, node)" title="Excluir Área"></lucide-icon>
+        </div>
       </div>
       
       <div class="sub-nodes" *ngIf="expanded[node.id] && node.sub_areas?.length">
         <app-tree-view 
           [nodes]="node.sub_areas || []" 
           [selectedId]="selectedId"
-          (select)="select.emit($event)">
+          (select)="select.emit($event)"
+          (edit)="edit.emit($event)"
+          (delete)="delete.emit($event)">
         </app-tree-view>
       </div>
     </div>
@@ -36,16 +42,34 @@ import { KnowledgeArea } from '../../../core/models/knowledge-area.model';
       display: flex; 
       align-items: center; 
       gap: 8px; 
-      padding: 6px 12px; 
-      border-radius: 6px; 
+      padding: 8px 12px; 
+      border-radius: 8px; 
       cursor: pointer; 
-      transition: var(--transition);
+      transition: all 0.2s ease;
       font-size: 0.9rem;
       color: var(--text-main);
+      position: relative;
+      min-height: 40px;
     }
     .node-content:hover { background: rgba(37, 99, 235, 0.05); }
     .node-content.selected { background: rgba(37, 99, 235, 0.1); color: var(--primary); font-weight: 600; }
-    .type-icon { color: var(--text-muted); }
+    .type-icon { color: var(--text-muted); flex-shrink: 0; }
+    .node-content span { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 4px; }
+    
+    .node-actions { 
+      display: flex; 
+      gap: 4px; 
+      align-items: center; 
+      margin-left: auto;
+      flex-shrink: 0;
+      background: inherit;
+      padding-left: 8px;
+    }
+    .action-icon { opacity: 0.7; cursor: pointer; transition: all 0.2s; padding: 4px; border-radius: 4px; }
+    .action-icon:hover { opacity: 1; background: rgba(0,0,0,0.05); }
+    .edit-icon:hover { color: var(--primary); }
+    .delete-icon:hover { color: var(--danger); }
+    
     .sub-nodes { border-left: 1px dashed var(--border); margin-left: 8px; }
   `]
 })
@@ -53,6 +77,8 @@ export class TreeViewComponent {
   @Input() nodes: KnowledgeArea[] = [];
   @Input() selectedId: string | null = null;
   @Output() select = new EventEmitter<KnowledgeArea>();
+  @Output() edit = new EventEmitter<KnowledgeArea>();
+  @Output() delete = new EventEmitter<KnowledgeArea>();
 
   expanded: { [key: string]: boolean } = {};
 
@@ -63,5 +89,15 @@ export class TreeViewComponent {
 
   onSelect(node: KnowledgeArea) {
     this.select.emit(node);
+  }
+
+  onEdit(event: Event, node: KnowledgeArea) {
+    event.stopPropagation();
+    this.edit.emit(node);
+  }
+
+  onDelete(event: Event, node: KnowledgeArea) {
+    event.stopPropagation();
+    this.delete.emit(node);
   }
 }

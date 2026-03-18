@@ -4,7 +4,9 @@ import { LucideAngularModule } from 'lucide-angular';
 import { CourseService } from '../../../core/services/course.service';
 import { ProgressService } from '../../../core/services/progress.service';
 import { LessonViewerComponent } from '../lesson-viewer/lesson-viewer.component';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
+import { AuthService } from '../../../core/services/auth.service';
+import { ToastService } from '../../../shared/components/toast/toast.service';
 
 @Component({
   selector: 'app-course-player',
@@ -19,6 +21,9 @@ import { ActivatedRoute } from '@angular/router';
             <div class="bar"><div class="fill" [style.width]="overallProgress + '%'"></div></div>
             <span>{{overallProgress}}% concluído</span>
           </div>
+          <div class="course-stats" *ngIf="topics.length > 0">
+            <span>{{completedContentIds.size}} / {{totalContents}} aulas</span>
+          </div>
         </div>
 
         <nav class="topics-nav">
@@ -29,12 +34,13 @@ import { ActivatedRoute } from '@angular/router';
             </div>
             
             <div class="lessons-list" *ngIf="!isTopicLocked(i)">
-              <div *ngFor="let content of topic.course_contents" 
+              <div *ngFor="let cc of topic.course_contents" 
                    class="lesson-item"
-                   [class.active]="selectedContent?.id === content.contents.id"
-                   (click)="selectContent(content.contents)">
-                <lucide-icon [name]="getContentIcon(content.contents.id)" size="14"></lucide-icon>
-                <span>{{content.contents.titulo_tema}}</span>
+                   [class.active]="isItemActive(cc)"
+                   [class.question-nav-item]="cc.tipo === 'questao'"
+                   (click)="selectItem(cc)">
+                <lucide-icon [name]="getItemIcon(cc)" size="14"></lucide-icon>
+                <span>{{ getItemDisplayName(cc) }}</span>
               </div>
             </div>
           </div>
@@ -42,13 +48,80 @@ import { ActivatedRoute } from '@angular/router';
       </div>
 
       <main class="content-area">
+        <!-- Content viewer -->
         <app-lesson-viewer 
-          *ngIf="selectedContent" 
+          *ngIf="selectedContent && !showCompletionScreen && !selectedQuestion" 
           [content]="selectedContent" 
-          [studentId]="'mock-student-id'">
+          [studentId]="studentId"
+          [isCompleted]="completedContentIds.has(selectedContent.id)"
+          [isLastItem]="checkIsLastItem()"
+          (progressUpdated)="loadProgress()"
+          (nextItem)="goToNextItem()">
         </app-lesson-viewer>
+
+        <!-- Inline Question Quiz -->
+        <div class="quiz-container" *ngIf="selectedQuestion && !showCompletionScreen">
+          <div class="quiz-card">
+            <div class="quiz-header">
+              <div class="quiz-icon">
+                <lucide-icon name="HelpCircle" size="32"></lucide-icon>
+              </div>
+              <h2>Questão de Reforço</h2>
+              <p class="quiz-subtitle">Teste seu conhecimento sobre o conteúdo estudado</p>
+            </div>
+
+            <div class="quiz-body">
+              <div class="question-text">{{ selectedQuestion.enunciado }}</div>
+
+              <div class="alternatives">
+                <button *ngFor="let alt of selectedQuestion.alternatives; let ai = index"
+                        class="alt-btn"
+                        [class.selected]="selectedAlternativeId === alt.id"
+                        [class.correct]="quizAnswered && alt.is_correta"
+                        [class.wrong]="quizAnswered && selectedAlternativeId === alt.id && !alt.is_correta"
+                        [disabled]="quizAnswered"
+                        (click)="selectAlternative(alt)">
+                  <span class="alt-letter">{{ getAlternativeLetter(ai) }}</span>
+                  <span class="alt-text">{{ alt.texto }}</span>
+                  <lucide-icon *ngIf="quizAnswered && alt.is_correta" name="CheckCircle" size="18" class="icon-correct"></lucide-icon>
+                  <lucide-icon *ngIf="quizAnswered && selectedAlternativeId === alt.id && !alt.is_correta" name="XCircle" size="18" class="icon-wrong"></lucide-icon>
+                </button>
+              </div>
+
+              <div class="quiz-feedback" *ngIf="quizAnswered">
+                <div class="feedback-card" [class.success]="quizCorrect" [class.error]="!quizCorrect">
+                  <lucide-icon [name]="quizCorrect ? 'CheckCircle' : 'AlertTriangle'" size="24"></lucide-icon>
+                  <div>
+                    <strong>{{ quizCorrect ? 'Parabéns! Resposta correta!' : 'Resposta incorreta.' }}</strong>
+                    <p *ngIf="!quizCorrect">A alternativa correta está destacada em verde.</p>
+                  </div>
+                </div>
+              </div>
+
+              <div class="quiz-actions">
+                <button class="btn-primary" (click)="confirmAnswer()" *ngIf="!quizAnswered && selectedAlternativeId">
+                  Confirmar Resposta
+                </button>
+                <button class="btn-primary" (click)="goToNextItem()" *ngIf="quizAnswered">
+                  Continuar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
         
-        <div class="empty-state" *ngIf="!selectedContent">
+        <div class="completion-screen" *ngIf="showCompletionScreen">
+          <div class="trophy-icon">
+            <lucide-icon name="Award" size="64"></lucide-icon>
+          </div>
+          <h2>Parabéns! Você concluiu o curso.</h2>
+          <p>Seu certificado já foi gerado e está disponível na sua conta.</p>
+          <button class="btn-primary mt-4" (click)="goToCertificates()">
+            Ver Meu Certificado
+          </button>
+        </div>
+        
+        <div class="empty-state" *ngIf="!selectedContent && !selectedQuestion && !showCompletionScreen">
           <lucide-icon name="BookOpen" size="48"></lucide-icon>
           <h3>Selecione uma aula para começar</h3>
         </div>
@@ -56,7 +129,7 @@ import { ActivatedRoute } from '@angular/router';
     </div>
   `,
   styles: [`
-    .player-layout { display: flex; height: 100vh; margin-left: 280px; background: var(--bg-main); }
+    .player-layout { display: flex; height: 100vh; background: var(--bg-main); }
     .sidebar { width: 320px; border-right: 1px solid var(--border); background: var(--bg-card); display: flex; flex-direction: column; }
     .course-info { padding: 1.5rem; border-bottom: 1px solid var(--border); }
     .course-info h2 { font-size: 1.1rem; margin-bottom: 1rem; }
@@ -72,47 +145,280 @@ import { ActivatedRoute } from '@angular/router';
     .lesson-item { padding: 0.6rem 1rem; font-size: 0.85rem; cursor: pointer; display: flex; align-items: center; gap: 8px; color: var(--text-muted); transition: var(--transition); }
     .lesson-item:hover { color: var(--primary); background: rgba(37, 99, 235, 0.05); }
     .lesson-item.active { color: var(--primary); font-weight: 600; background: rgba(37, 99, 235, 0.1); border-radius: 0 20px 20px 0; }
+    .lesson-item.question-nav-item { color: #f59e0b; }
+    .lesson-item.question-nav-item:hover { color: #d97706; background: rgba(245, 158, 11, 0.05); }
+    .lesson-item.question-nav-item.active { color: #d97706; background: rgba(245, 158, 11, 0.1); }
     
-    .content-area { flex: 1; padding: 2rem; overflow: hidden; }
-    .empty-state { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--text-muted); gap: 1rem; }
+    .content-area { flex: 1; padding: 2rem; overflow: hidden; display: flex; flex-direction: column; }
+    .empty-state { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--text-muted); gap: 1rem; }
+    
+    /* Quiz styles */
+    .quiz-container { flex: 1; display: flex; align-items: center; justify-content: center; }
+    .quiz-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 16px; max-width: 700px; width: 100%; overflow: hidden; animation: fadeIn 0.3s ease-out; }
+    .quiz-header { text-align: center; padding: 2rem 2rem 1rem; background: linear-gradient(135deg, rgba(245, 158, 11, 0.08), rgba(37, 99, 235, 0.05)); border-bottom: 1px solid var(--border); }
+    .quiz-icon { width: 64px; height: 64px; border-radius: 50%; background: rgba(245, 158, 11, 0.15); color: #f59e0b; display: flex; align-items: center; justify-content: center; margin: 0 auto 1rem; }
+    .quiz-header h2 { font-size: 1.3rem; color: var(--text-main); margin-bottom: 0.25rem; }
+    .quiz-subtitle { color: var(--text-muted); font-size: 0.85rem; }
+    .quiz-body { padding: 2rem; }
+    .question-text { font-size: 1.1rem; line-height: 1.7; color: var(--text-main); margin-bottom: 1.5rem; padding: 1rem; background: var(--bg-main); border-radius: 8px; border-left: 3px solid #f59e0b; }
+
+    .alternatives { display: flex; flex-direction: column; gap: 0.75rem; margin-bottom: 1.5rem; }
+    .alt-btn { display: flex; align-items: center; gap: 12px; padding: 1rem 1.25rem; border: 2px solid var(--border); border-radius: 10px; background: var(--bg-main); color: var(--text-main); cursor: pointer; font-size: 0.95rem; text-align: left; transition: all 0.2s; }
+    .alt-btn:hover:not(:disabled) { border-color: var(--primary); background: rgba(37, 99, 235, 0.03); }
+    .alt-btn.selected { border-color: var(--primary); background: rgba(37, 99, 235, 0.06); }
+    .alt-btn.correct { border-color: #10b981; background: rgba(16, 185, 129, 0.08); }
+    .alt-btn.wrong { border-color: #ef4444; background: rgba(239, 68, 68, 0.08); }
+    .alt-btn:disabled { cursor: default; }
+    .alt-letter { width: 32px; height: 32px; border-radius: 50%; background: var(--border); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.85rem; flex-shrink: 0; }
+    .alt-text { flex: 1; }
+    .icon-correct { color: #10b981; }
+    .icon-wrong { color: #ef4444; }
+
+    .quiz-feedback { margin-bottom: 1.5rem; }
+    .feedback-card { display: flex; align-items: center; gap: 1rem; padding: 1rem 1.5rem; border-radius: 10px; animation: fadeIn 0.3s ease-out; }
+    .feedback-card.success { background: rgba(16, 185, 129, 0.1); color: #10b981; }
+    .feedback-card.error { background: rgba(239, 68, 68, 0.1); color: #ef4444; }
+    .feedback-card p { margin-top: 4px; font-size: 0.85rem; opacity: 0.8; }
+
+    .quiz-actions { display: flex; justify-content: center; }
+
+    .completion-screen { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; background: var(--bg-card); border-radius: 16px; border: 1px solid var(--border); padding: 3rem; animation: fadeIn 0.5s ease-out; }
+    .trophy-icon { width: 120px; height: 120px; border-radius: 50%; background: rgba(16, 185, 129, 0.1); color: var(--success); display: flex; align-items: center; justify-content: center; margin-bottom: 2rem; }
+    .completion-screen h2 { font-size: 2rem; color: var(--text-main); margin-bottom: 1rem; }
+    .completion-screen p { color: var(--text-muted); font-size: 1.1rem; margin-bottom: 2rem; }
+    .mt-4 { margin-top: 1.5rem; }
+    
+    .btn-primary { 
+      background: var(--primary); 
+      color: white; 
+      padding: 0.75rem 1.5rem; 
+      border-radius: 8px; 
+      font-weight: 600; 
+      border: none; 
+      cursor: pointer; 
+      transition: background 0.2s, transform 0.1s; 
+    }
+    .btn-primary:hover { 
+      background: var(--primary-hover); 
+      transform: translateY(-1px); 
+    }
+    
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
   `]
 })
 export class CoursePlayerComponent implements OnInit {
   private courseService = inject(CourseService);
   private progressService = inject(ProgressService);
   private route = inject(ActivatedRoute);
+  private router = inject(Router);
+  private authService = inject(AuthService);
+  private toastService = inject(ToastService);
 
+  courseId = '';
   courseTitle = 'Carregando...';
   topics: any[] = [];
   selectedContent: any = null;
+  selectedQuestion: any = null;
   overallProgress = 0;
   completedContentIds: Set<string> = new Set();
+  answeredQuestionIds: Set<string> = new Set();
+  studentId = '';
+  showCompletionScreen = false;
+  totalContents = 0;
+
+  // Quiz state
+  selectedAlternativeId: string | null = null;
+  quizAnswered = false;
+  quizCorrect = false;
+  private activeItemCC: any = null;
 
   ngOnInit() {
-    const courseId = this.route.snapshot.params['id'] || 'mock-course-id';
-    this.loadCourse(courseId);
+    this.studentId = this.authService.getLoggedProfile()?.id || '';
+    this.courseId = this.route.snapshot.params['id'];
+    if (this.courseId) {
+      this.loadCourse(this.courseId);
+    }
   }
 
   loadCourse(id: string) {
     this.courseService.getCourseStructure(id).subscribe(data => {
-      this.topics = data;
+      // Pre-process: sort course_contents by ordem and filter nulls
+      this.topics = data.map((topic: any) => {
+        if (topic.course_contents) {
+          topic.course_contents = topic.course_contents
+            .sort((a: any, b: any) => (a.ordem || 0) - (b.ordem || 0))
+            .filter((cc: any) => {
+              if (cc.tipo === 'questao') return cc.questions != null;
+              return cc.contents != null;
+            });
+        }
+        return topic;
+      });
       this.courseTitle = data[0]?.courses?.titulo || 'Curso';
-      // Simulação: Em produção, buscaria o progresso real do aluno aqui
+      this.loadProgress();
     });
+  }
+
+  loadProgress() {
+    if (!this.studentId || this.topics.length === 0) return;
+
+    let allContentIds: string[] = [];
+    this.topics.forEach(t => {
+      if (t.course_contents) {
+        t.course_contents.forEach((cc: any) => {
+          // Only count actual content items for progress (not questions)
+          if ((!cc.tipo || cc.tipo === 'conteudo') && cc.contents) {
+            allContentIds.push(cc.contents.id);
+          }
+        });
+      }
+    });
+
+    if (allContentIds.length > 0) {
+      this.progressService.getCourseProgress(this.studentId, allContentIds).subscribe(async progressData => {
+        this.completedContentIds = new Set(
+          progressData.filter(p => p.status === 'CONCLUIDO').map(p => p.id_conteudo)
+        );
+        this.totalContents = allContentIds.length;
+        const newProgress = Math.round((this.completedContentIds.size / this.totalContents) * 100);
+
+        if (newProgress === 100 && this.overallProgress < 100) {
+          this.overallProgress = 100;
+          this.handleCourseCompletion();
+        } else {
+          this.overallProgress = newProgress;
+          if (this.overallProgress === 100 && !this.selectedContent && !this.selectedQuestion) {
+            this.showCompletionScreen = true;
+          }
+        }
+      });
+    }
+  }
+
+  async handleCourseCompletion() {
+    try {
+      const issued = await this.progressService.checkAndIssueCertificate(this.studentId, this.courseId);
+      this.showCompletionScreen = true;
+      if (issued) {
+        this.toastService.success('Curso concluído! Certificado gerado com sucesso.');
+      }
+    } catch (e) {
+      console.error('Erro ao gerar certificado', e);
+    }
   }
 
   isTopicLocked(index: number): boolean {
     if (index === 0) return false;
-    // Lógica: Tópico N está bloqueado se o Tópico N-1 não estiver 100% concluído
-    // Para o MVP, vamos simular que apenas o primeiro está aberto
-    return index > 0 && this.completedContentIds.size === 0;
+
+    const previousTopic = this.topics[index - 1];
+    if (!previousTopic || !previousTopic.course_contents) return false;
+
+    const previousContentIds = previousTopic.course_contents
+      .filter((cc: any) => !cc.tipo || cc.tipo === 'conteudo')
+      .map((c: any) => c.contents?.id)
+      .filter((id: string) => !!id);
+    const completedPrevious = previousContentIds.filter((id: string) => this.completedContentIds.has(id));
+
+    return completedPrevious.length < previousContentIds.length;
   }
 
-  selectContent(content: any) {
-    this.selectedContent = content;
+  // ---- Item selection ----
+
+  selectItem(cc: any) {
+    this.showCompletionScreen = false;
+    this.activeItemCC = cc;
+
+    if (cc.tipo === 'questao' && cc.questions) {
+      this.selectedContent = null;
+      this.selectedQuestion = cc.questions;
+      this.selectedAlternativeId = null;
+      this.quizAnswered = false;
+      this.quizCorrect = false;
+    } else if (cc.contents) {
+      this.selectedQuestion = null;
+      this.selectedContent = cc.contents;
+    }
   }
 
-  getContentIcon(id: string) {
-    return this.completedContentIds.has(id) ? 'CheckCircle' : 'Play';
+  isItemActive(cc: any): boolean {
+    return this.activeItemCC === cc;
+  }
+
+  getItemDisplayName(cc: any): string {
+    if (cc.tipo === 'questao' && cc.questions) {
+      const q = cc.questions;
+      const title = q.titulo || q.enunciado;
+      return title?.length > 40 ? title.substring(0, 40) + '...' : title || 'Questão';
+    }
+    return cc.contents?.titulo_tema || '(sem título)';
+  }
+
+  getItemIcon(cc: any): string {
+    if (cc.tipo === 'questao') {
+      return this.answeredQuestionIds.has(cc.questions?.id) ? 'CheckCircle' : 'HelpCircle';
+    }
+    return this.completedContentIds.has(cc.contents?.id) ? 'CheckCircle' : 'Play';
+  }
+
+  // ---- Quiz logic ----
+
+  selectAlternative(alt: any) {
+    if (!this.quizAnswered) {
+      this.selectedAlternativeId = alt.id;
+    }
+  }
+
+  getAlternativeLetter(index: number): string {
+    return String.fromCharCode(65 + index); // A, B, C, D...
+  }
+
+  confirmAnswer() {
+    if (!this.selectedAlternativeId || !this.selectedQuestion) return;
+
+    const selectedAlt = this.selectedQuestion.alternatives?.find(
+      (a: any) => a.id === this.selectedAlternativeId
+    );
+    this.quizCorrect = selectedAlt?.is_correta || false;
+    this.quizAnswered = true;
+    this.answeredQuestionIds.add(this.selectedQuestion.id);
+  }
+
+  checkIsLastItem(): boolean {
+    if (!this.topics?.length || !this.activeItemCC) return false;
+    
+    const flatItems = this.topics.flatMap(t => t.course_contents || []);
+    const currentIndex = flatItems.indexOf(this.activeItemCC);
+    return currentIndex === flatItems.length - 1;
+  }
+
+  goToNextItem() {
+    if (!this.topics?.length || !this.activeItemCC) return;
+
+    const flatItems = this.topics.flatMap(t => t.course_contents || []);
+    const currentIndex = flatItems.indexOf(this.activeItemCC);
+
+    if (currentIndex < flatItems.length - 1) {
+      this.selectItem(flatItems[currentIndex + 1]);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } else {
+      // Reached the end of the course
+      this.activeItemCC = null;
+      this.selectedContent = null;
+      this.selectedQuestion = null;
+      
+      // Force refresh progress one last time before showing screen
+      this.loadProgress();
+      
+      // If we are at the end, just show completion regardless of exact 100% calculation
+      // as long as the student finished the last item
+      this.showCompletionScreen = true;
+    }
+  }
+
+  goToCertificates() {
+    this.router.navigate(['/student/certificates']);
   }
 }

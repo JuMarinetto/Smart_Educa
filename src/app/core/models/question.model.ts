@@ -10,6 +10,7 @@ export interface Question {
   codigo?: string;
   titulo?: string;
   enunciado: string;
-  id_conteudo: string;
+  id_conteudo?: string;
+  id_area_conhecimento?: string;
   alternatives?: Alternative[];
 }

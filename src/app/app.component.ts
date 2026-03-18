@@ -1,18 +1,15 @@
 import { Component } from '@angular/core';
 import { RouterModule } from '@angular/router';
 import { SidebarComponent } from './layout/sidebar/sidebar.component';
+import { ToastComponent } from './shared/components/toast/toast.component';
 
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [RouterModule, SidebarComponent],
+  imports: [RouterModule, SidebarComponent, ToastComponent],
   template: `
-    <div class="app-layout">
-      <app-sidebar></app-sidebar>
-      <main class="content">
-        <router-outlet></router-outlet>
-      </main>
-    </div>
+    <router-outlet></router-outlet>
+    <app-toast></app-toast>
   `,
   styles: [`
     .app-layout {
@@ -25,4 +22,4 @@ import { SidebarComponent } from './layout/sidebar/sidebar.component';
     }
   `]
 })
-export class AppComponent {}
+export class AppComponent { }

@@ -16,6 +16,7 @@ export interface Profile {
   bairro?: string;
   estado?: string;
   cidade?: string;
+  senha?: string;
   perfil: UserRole;
   ativo: boolean;
   created_at: string;
