@@ -4,14 +4,14 @@ import { LucideAngularModule, TrendingUp, Users, Award, Clock, Moon, Sun, Filter
 import { UiCardComponent } from '../../shared/components/ui-card/ui-card.component';
 import { ThemeService } from '../../core/theme.service';
 import { ReportsService } from '../../core/services/reports.service';
-import { BaseChartDirective } from 'ng2-charts';
+import { NgChartsModule } from 'ng2-charts';
 import { ChartConfiguration } from 'chart.js';
 import { DragDropModule, CdkDragDrop, moveItemInArray } from '@angular/cdk/drag-drop';
 
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [CommonModule, LucideAngularModule, UiCardComponent, BaseChartDirective, DragDropModule],
+  imports: [CommonModule, LucideAngularModule, UiCardComponent, NgChartsModule, DragDropModule],
   template: `
     <div class="dashboard-container">
       <header class="dashboard-header">
