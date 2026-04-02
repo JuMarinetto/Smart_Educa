@@ -55,7 +55,7 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
           [studentId]="studentId"
           [isCompleted]="completedContentIds.has(selectedContent.id)"
           [isLastItem]="checkIsLastItem()"
-          (progressUpdated)="loadProgress()"
+          (progressUpdated)="onContentCompleted($event)"
           (nextItem)="goToNextItem()">
         </app-lesson-viewer>
 
@@ -149,12 +149,12 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
     .lesson-item.question-nav-item:hover { color: #d97706; background: rgba(245, 158, 11, 0.05); }
     .lesson-item.question-nav-item.active { color: #d97706; background: rgba(245, 158, 11, 0.1); }
     
-    .content-area { flex: 1; padding: 2rem; overflow: hidden; display: flex; flex-direction: column; }
+    .content-area { flex: 1; padding: 2rem; overflow-y: auto; display: flex; flex-direction: column; }
     .empty-state { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--text-muted); gap: 1rem; }
     
     /* Quiz styles */
-    .quiz-container { flex: 1; display: flex; align-items: center; justify-content: center; }
-    .quiz-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 16px; max-width: 700px; width: 100%; overflow: hidden; animation: fadeIn 0.3s ease-out; }
+    .quiz-container { flex: 1; display: flex; align-items: flex-start; justify-content: center; padding-bottom: 2rem; }
+    .quiz-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 16px; max-width: 700px; width: 100%; overflow: visible; animation: fadeIn 0.3s ease-out; }
     .quiz-header { text-align: center; padding: 2rem 2rem 1rem; background: linear-gradient(135deg, rgba(245, 158, 11, 0.08), rgba(37, 99, 235, 0.05)); border-bottom: 1px solid var(--border); }
     .quiz-icon { width: 64px; height: 64px; border-radius: 50%; background: rgba(245, 158, 11, 0.15); color: #f59e0b; display: flex; align-items: center; justify-content: center; margin: 0 auto 1rem; }
     .quiz-header h2 { font-size: 1.3rem; color: var(--text-main); margin-bottom: 0.25rem; }
@@ -234,17 +234,34 @@ export class CoursePlayerComponent implements OnInit {
   quizAnswered = false;
   quizCorrect = false;
   private activeItemCC: any = null;
+  private activeItemIndex = -1;
 
   ngOnInit() {
     this.studentId = this.authService.getLoggedProfile()?.id || '';
     this.courseId = this.route.snapshot.params['id'];
     if (this.courseId) {
       this.loadCourse(this.courseId);
+      this.restoreAnsweredQuestions();
+    }
+  }
+
+  /** If a contentId queryParam was passed (e.g. from assessment review), select that item automatically */
+  private tryDeepLinkContent() {
+    const targetContentId = this.route.snapshot.queryParamMap.get('contentId');
+    if (!targetContentId) return;
+    for (const topic of this.topics) {
+      if (!topic.course_contents) continue;
+      for (const cc of topic.course_contents) {
+        if (cc.tipo !== 'questao' && cc.contents?.id === targetContentId) {
+          this.selectItem(cc);
+          return;
+        }
+      }
     }
   }
 
   loadCourse(id: string) {
-    this.courseService.getCourseStructure(id).subscribe(data => {
+    this.courseService.getCourseStructure(id).subscribe(async (data: any) => {
       // Pre-process: sort course_contents by ordem and filter nulls
       this.topics = data.map((topic: any) => {
         if (topic.course_contents) {
@@ -258,30 +275,34 @@ export class CoursePlayerComponent implements OnInit {
         return topic;
       });
       this.courseTitle = data[0]?.courses?.titulo || 'Curso';
-      this.loadProgress();
+      await this.loadProgress();
+      this.tryDeepLinkContent();
     });
   }
 
-  loadProgress() {
-    if (!this.studentId || this.topics.length === 0) return;
+  loadProgress(): Promise<void> {
+    return new Promise(resolve => {
+      if (!this.studentId || this.topics.length === 0) { resolve(); return; }
 
-    let allContentIds: string[] = [];
-    this.topics.forEach(t => {
-      if (t.course_contents) {
-        t.course_contents.forEach((cc: any) => {
-          // Only count actual content items for progress (not questions)
-          if ((!cc.tipo || cc.tipo === 'conteudo') && cc.contents) {
-            allContentIds.push(cc.contents.id);
-          }
-        });
-      }
-    });
+      const allContentIds: string[] = [];
+      this.topics.forEach(t => {
+        if (t.course_contents) {
+          t.course_contents.forEach((cc: any) => {
+            if ((!cc.tipo || cc.tipo === 'conteudo') && cc.contents) {
+              allContentIds.push(cc.contents.id);
+            }
+          });
+        }
+      });
 
-    if (allContentIds.length > 0) {
+      if (allContentIds.length === 0) { resolve(); return; }
+
       this.progressService.getCourseProgress(this.studentId, allContentIds).subscribe(async progressData => {
-        this.completedContentIds = new Set(
+        const fromDb = new Set<string>(
           progressData.filter(p => p.status === 'CONCLUIDO').map(p => p.id_conteudo)
         );
+        // MERGE: keep any optimistically-added IDs even if the DB write hasn't committed yet
+        this.completedContentIds = new Set([...fromDb, ...this.completedContentIds]);
         this.totalContents = allContentIds.length;
         const newProgress = Math.round((this.completedContentIds.size / this.totalContents) * 100);
 
@@ -290,12 +311,10 @@ export class CoursePlayerComponent implements OnInit {
           this.handleCourseCompletion();
         } else {
           this.overallProgress = newProgress;
-          if (this.overallProgress === 100 && !this.selectedContent && !this.selectedQuestion) {
-            this.showCompletionScreen = true;
-          }
         }
+        resolve();
       });
-    }
+    });
   }
 
   async handleCourseCompletion() {
@@ -327,9 +346,14 @@ export class CoursePlayerComponent implements OnInit {
 
   // ---- Item selection ----
 
+  private getFlatItems(): any[] {
+    return this.topics.flatMap(t => t.course_contents || []);
+  }
+
   selectItem(cc: any) {
     this.showCompletionScreen = false;
     this.activeItemCC = cc;
+    this.activeItemIndex = this.getFlatItems().indexOf(cc);
 
     if (cc.tipo === 'questao' && cc.questions) {
       this.selectedContent = null;
@@ -384,36 +408,69 @@ export class CoursePlayerComponent implements OnInit {
     this.quizCorrect = selectedAlt?.is_correta || false;
     this.quizAnswered = true;
     this.answeredQuestionIds.add(this.selectedQuestion.id);
+    this.persistAnsweredQuestions();
+  }
+
+  /** Optimistically mark a content as complete in the sidebar immediately */
+  onContentCompleted(contentId: string) {
+    if (contentId) {
+      this.completedContentIds = new Set([...this.completedContentIds, contentId]);
+      // Recalculate progress bar immediately
+      if (this.totalContents > 0) {
+        this.overallProgress = Math.round((this.completedContentIds.size / this.totalContents) * 100);
+      }
+    }
+    // Do NOT call loadProgress() here: it would race with the DB write and potentially
+    // overwrite the optimistic state before Supabase commits the record.
+    // Background sync will happen in goToNextItem().
+  }
+
+  /** Persist answered question IDs to localStorage for this course */
+  private persistAnsweredQuestions() {
+    try {
+      const key = `answered_questions_${this.courseId}`;
+      localStorage.setItem(key, JSON.stringify([...this.answeredQuestionIds]));
+    } catch (e) { /* ignore storage errors */ }
+  }
+
+  /** Restore answered question IDs from localStorage */
+  private restoreAnsweredQuestions() {
+    try {
+      const key = `answered_questions_${this.courseId}`;
+      const stored = localStorage.getItem(key);
+      if (stored) {
+        this.answeredQuestionIds = new Set(JSON.parse(stored));
+      }
+    } catch (e) { /* ignore */ }
   }
 
   checkIsLastItem(): boolean {
-    if (!this.topics?.length || !this.activeItemCC) return false;
-    
-    const flatItems = this.topics.flatMap(t => t.course_contents || []);
-    const currentIndex = flatItems.indexOf(this.activeItemCC);
-    return currentIndex === flatItems.length - 1;
+    if (!this.topics?.length) return false;
+    const flatItems = this.getFlatItems();
+    if (flatItems.length === 0) return false;
+    // Use index tracking to avoid stale object reference
+    const idx = this.activeItemIndex >= 0 ? this.activeItemIndex : flatItems.indexOf(this.activeItemCC);
+    return idx === flatItems.length - 1;
   }
 
-  goToNextItem() {
-    if (!this.topics?.length || !this.activeItemCC) return;
+  async goToNextItem() {
+    if (!this.topics?.length) return;
 
-    const flatItems = this.topics.flatMap(t => t.course_contents || []);
-    const currentIndex = flatItems.indexOf(this.activeItemCC);
+    const flatItems = this.getFlatItems();
+    const currentIndex = this.activeItemIndex >= 0 ? this.activeItemIndex : flatItems.indexOf(this.activeItemCC);
 
-    if (currentIndex < flatItems.length - 1) {
+    if (currentIndex >= 0 && currentIndex < flatItems.length - 1) {
       this.selectItem(flatItems[currentIndex + 1]);
       window.scrollTo({ top: 0, behavior: 'smooth' });
+      // Refresh progress in background without blocking navigation
+      this.loadProgress();
     } else {
-      // Reached the end of the course
+      // End of course — show completion screen
       this.activeItemCC = null;
+      this.activeItemIndex = -1;
       this.selectedContent = null;
       this.selectedQuestion = null;
-      
-      // Force refresh progress one last time before showing screen
-      this.loadProgress();
-      
-      // If we are at the end, just show completion regardless of exact 100% calculation
-      // as long as the student finished the last item
+      await this.loadProgress();
       this.showCompletionScreen = true;
     }
   }

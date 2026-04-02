@@ -7,10 +7,19 @@ import { DataTableComponent, TableColumn } from '../../../shared/components/data
 import { AssessmentService } from '../../../core/services/assessment.service';
 import { QuestionService } from '../../../core/services/question.service';
 import { KnowledgeService } from '../../../core/services/knowledge.service';
+import { CourseService } from '../../../core/services/course.service';
 import { Assessment } from '../../../core/models/assessment.model';
 import { KnowledgeArea } from '../../../core/models/knowledge-area.model';
+import { Course } from '../../../core/models/course.model';
 import { UiModalComponent } from '../../../shared/components/ui-modal/ui-modal.component';
 import { ToastService } from '../../../shared/components/toast/toast.service';
+
+/** Representa um conteúdo extraído das questões vinculadas */
+interface ContentRule {
+  id: string;
+  titulo: string;
+  notaMinima: number;
+}
 
 @Component({
   selector: 'app-assessment-list',
@@ -29,7 +38,7 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
         </button>
       </header>
 
-      <app-data-table 
+      <app-data-table
         [title]="'Todas as Avaliações'"
         [columns]="columns"
         [data]="assessments"
@@ -44,14 +53,14 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
             <lucide-icon name="AlertCircle" size="18"></lucide-icon>
             Preencha todos os campos obrigatórios (*) para continuar.
           </div>
-          
+
           <div class="form-group">
             <label>Nome da Avaliação <span class="required-star">*</span></label>
-            <input type="text" [(ngModel)]="assessmentForm.nome" name="nome" required 
+            <input type="text" [(ngModel)]="assessmentForm.nome" name="nome" required
                    [class.invalid-input]="showError && !assessmentForm.nome"
                    placeholder="Ex: Prova Final - Lógica de Programação">
           </div>
-          
+
           <div class="form-row">
             <div class="form-group flex-1">
               <label>Tipo <span class="required-star">*</span></label>
@@ -82,6 +91,14 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
               <label>Duração (minutos)</label>
               <input type="number" [(ngModel)]="assessmentForm.duracao" name="duracao" min="0" placeholder="Ex: 60">
             </div>
+          </div>
+
+          <div class="form-group">
+            <label>Curso Vinculado</label>
+            <select [(ngModel)]="assessmentForm.id_curso" name="id_curso">
+              <option value="">Nenhum curso específico</option>
+              <option *ngFor="let course of courses" [value]="course.id">{{ course.titulo }}</option>
+            </select>
           </div>
 
           <div class="form-row align-center mt-2">
@@ -126,6 +143,10 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
                   <div>
                     <strong>{{ lq.questions?.titulo || lq.questions?.codigo || 'Questão' }}</strong>
                     <p class="qm-enunciado">{{ lq.questions?.enunciado | slice:0:100 }}{{ lq.questions?.enunciado?.length > 100 ? '...' : '' }}</p>
+                    <span class="qm-content-tag" *ngIf="lq.questions?.contents?.titulo_tema">
+                      <lucide-icon name="BookOpen" size="12"></lucide-icon>
+                      {{ lq.questions?.contents?.titulo_tema }}
+                    </span>
                   </div>
                 </div>
                 <button class="btn-unlink" (click)="unlinkQuestion(lq.id_questao)">
@@ -170,6 +191,50 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
             </p>
           </div>
 
+          <!-- ===== NOVA SEÇÃO: Regras por Conteúdo ===== -->
+          <div class="qm-section rules-section" *ngIf="contentRules.length > 0">
+            <div class="rules-header">
+              <h4>
+                <lucide-icon name="Target" size="16"></lucide-icon>
+                Nota Mínima por Conteúdo
+              </h4>
+              <p class="rules-hint">Defina a pontuação mínima que o aluno deve atingir em cada conteúdo para ser aprovado.</p>
+            </div>
+
+            <div class="rules-grid">
+              <div class="rule-card" *ngFor="let rule of contentRules">
+                <div class="rule-card-info">
+                  <lucide-icon name="BookOpen" size="16" class="rule-icon"></lucide-icon>
+                  <span class="rule-title">{{ rule.titulo }}</span>
+                </div>
+                <div class="rule-input-group">
+                  <label>Mínimo</label>
+                  <input
+                    type="number"
+                    [(ngModel)]="rule.notaMinima"
+                    [name]="'rule_' + rule.id"
+                    min="0"
+                    max="100"
+                    placeholder="0"
+                    class="rule-input">
+                  <span class="rule-unit">pts</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="rules-actions">
+              <button type="button" class="btn-save-rules" (click)="saveContentRules()" [disabled]="savingRules">
+                <lucide-icon [name]="savingRules ? 'Loader' : 'Save'" size="16"></lucide-icon>
+                {{ savingRules ? 'Salvando...' : 'Salvar Regras' }}
+              </button>
+            </div>
+          </div>
+
+          <div class="qm-section rules-empty" *ngIf="contentRules.length === 0 && linkedQuestions.length > 0">
+            <lucide-icon name="Info" size="16"></lucide-icon>
+            Nenhuma questão vinculada possui conteúdo associado. Associe conteúdos às questões para configurar notas mínimas.
+          </div>
+
           <div class="form-actions">
             <button type="button" class="btn-primary" (click)="closeQuestionsModal()">Concluído</button>
           </div>
@@ -182,7 +247,7 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
     .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; }
     .btn-primary { background: var(--primary); color: white; padding: 0.8rem 1.5rem; border-radius: 8px; display: flex; align-items: center; gap: 8px; font-weight: 600; border: none; cursor: pointer; }
     .btn-secondary { background: var(--bg-main); border: 1px solid var(--border); color: var(--text-main); padding: 0.8rem 1.5rem; border-radius: 8px; cursor: pointer; }
-    
+
     .admin-form { display: flex; flex-direction: column; gap: 1.25rem; }
     .form-group { display: flex; flex-direction: column; gap: 0.5rem; }
     .form-row { display: flex; gap: 1rem; }
@@ -193,7 +258,7 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
     .form-group label { font-size: 0.9rem; font-weight: 600; color: var(--text-muted); }
     .form-group input, .form-group select { padding: 0.75rem; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-main); color: var(--text-main); }
     .invalid-input { border-color: #ef4444 !important; }
-    
+
     .checkbox-group { display: flex; align-items: center; margin-top: 1.5rem; }
     .checkbox-label { display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-size: 0.95rem; color: var(--text-main) !important; font-weight: 500 !important; }
     .checkbox-label input { width: 1.2rem; height: 1.2rem; accent-color: var(--primary); cursor: pointer; }
@@ -206,7 +271,7 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
     .qm-header h3 { font-size: 1.1rem; font-weight: 700; margin: 0; }
     .qm-badge { background: rgba(139,92,246,0.15); color: var(--primary); padding: 0.3rem 0.75rem; border-radius: 20px; font-size: 0.8rem; font-weight: 600; }
 
-    .qm-section h4 { font-size: 0.9rem; font-weight: 700; color: var(--text-muted); margin-bottom: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px; }
+    .qm-section h4 { font-size: 0.9rem; font-weight: 700; color: var(--text-muted); margin-bottom: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px; display: flex; align-items: center; gap: 6px; }
     .qm-list { display: flex; flex-direction: column; gap: 0.5rem; }
     .available-list { max-height: 300px; overflow-y: auto; }
 
@@ -224,6 +289,12 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
     .qm-item-info strong { font-size: 0.9rem; display: block; }
     .qm-enunciado { font-size: 0.8rem; color: var(--text-muted); margin: 0.2rem 0 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 500px; }
 
+    .qm-content-tag {
+      display: inline-flex; align-items: center; gap: 4px;
+      font-size: 0.75rem; color: var(--primary); background: rgba(139,92,246,0.1);
+      padding: 0.15rem 0.5rem; border-radius: 12px; margin-top: 0.3rem;
+    }
+
     .btn-unlink { display: flex; align-items: center; gap: 4px; background: none; border: 1px solid rgba(239,68,68,0.3); color: #ef4444; padding: 0.35rem 0.7rem; border-radius: 6px; cursor: pointer; font-size: 0.8rem; font-weight: 600; white-space: nowrap; }
     .btn-unlink:hover { background: rgba(239,68,68,0.1); }
     .btn-link { display: flex; align-items: center; gap: 4px; background: none; border: 1px solid rgba(34,197,94,0.3); color: #22c55e; padding: 0.35rem 0.7rem; border-radius: 6px; cursor: pointer; font-size: 0.8rem; font-weight: 600; white-space: nowrap; }
@@ -232,31 +303,81 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
     .qm-filters { display: flex; gap: 0.75rem; margin-bottom: 0.75rem; }
     .qm-search { display: flex; align-items: center; gap: 8px; padding: 0.6rem 0.75rem; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-main); color: var(--text-muted); }
     .qm-search input { border: none; background: none; color: var(--text-main); flex: 1; outline: none; font-size: 0.9rem; }
-    
-    .qm-filter-select select { 
-      padding: 0.6rem 1rem; border: 1px solid var(--border); border-radius: 8px; 
+
+    .qm-filter-select select {
+      padding: 0.6rem 1rem; border: 1px solid var(--border); border-radius: 8px;
       background: var(--bg-main); color: var(--text-main); font-size: 0.9rem; height: 100%;
       min-width: 200px; outline: none;
     }
 
     .qm-empty { color: var(--text-muted); font-size: 0.9rem; text-align: center; padding: 1.5rem; }
+
+    /* ====== RULES SECTION ====== */
+    .rules-section {
+      background: rgba(139,92,246,0.04);
+      border: 1px solid rgba(139,92,246,0.2);
+      border-radius: 12px;
+      padding: 1.25rem;
+    }
+    .rules-header { margin-bottom: 1rem; }
+    .rules-header h4 { color: var(--primary) !important; }
+    .rules-hint { font-size: 0.82rem; color: var(--text-muted); margin: 0.35rem 0 0; }
+
+    .rules-grid { display: flex; flex-direction: column; gap: 0.6rem; }
+    .rule-card {
+      display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+      background: var(--bg-card); padding: 0.75rem 1rem;
+      border-radius: 8px; border: 1px solid var(--border);
+    }
+    .rule-card-info { display: flex; align-items: center; gap: 0.5rem; flex: 1; min-width: 0; }
+    .rule-icon { color: var(--primary); flex-shrink: 0; }
+    .rule-title { font-size: 0.9rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    .rule-input-group { display: flex; align-items: center; gap: 0.4rem; flex-shrink: 0; }
+    .rule-input-group label { font-size: 0.8rem; color: var(--text-muted); white-space: nowrap; }
+    .rule-input {
+      width: 70px; padding: 0.4rem 0.6rem; border: 1px solid var(--border);
+      border-radius: 6px; background: var(--bg-main); color: var(--text-main);
+      text-align: right; font-size: 0.9rem; font-weight: 700;
+    }
+    .rule-input:focus { border-color: var(--primary); outline: none; }
+    .rule-unit { font-size: 0.8rem; color: var(--text-muted); }
+
+    .rules-actions { margin-top: 1rem; display: flex; justify-content: flex-end; }
+    .btn-save-rules {
+      display: flex; align-items: center; gap: 6px;
+      background: var(--primary); color: white;
+      padding: 0.55rem 1.25rem; border-radius: 8px;
+      border: none; cursor: pointer; font-weight: 600; font-size: 0.9rem;
+    }
+    .btn-save-rules:hover { opacity: 0.9; }
+    .btn-save-rules:disabled { opacity: 0.6; cursor: not-allowed; }
+
+    .rules-empty {
+      display: flex; align-items: center; gap: 0.5rem;
+      font-size: 0.85rem; color: var(--text-muted);
+      padding: 0.75rem 1rem; border-radius: 8px;
+      background: var(--bg-card); border: 1px dashed var(--border);
+    }
   `]
 })
 export class AssessmentListComponent implements OnInit {
   private assessmentService = inject(AssessmentService);
   private questionService = inject(QuestionService);
   private knowledgeService = inject(KnowledgeService);
+  private courseService = inject(CourseService);
   private toastService = inject(ToastService);
 
   assessments: Assessment[] = [];
   areas: KnowledgeArea[] = [];
+  courses: Course[] = [];
 
   // --- Metadata Modal ---
   isModalOpen = false;
   editingAssessment: Assessment | null = null;
   assessmentForm: any = {
     nome: '', tipo: 'DIAGNOSTICA', status: 'RASCUNHO',
-    nota_total: 10, duracao: 60, modo_criacao: 'MANUAL', cronometro: true
+    nota_total: 10, duracao: 60, modo_criacao: 'MANUAL', cronometro: true, id_curso: null
   };
   showError = false;
 
@@ -269,6 +390,10 @@ export class AssessmentListComponent implements OnInit {
   questionSearch = '';
   selectedAreaId = '';
 
+  // --- Content Rules ---
+  contentRules: ContentRule[] = [];
+  savingRules = false;
+
   columns: TableColumn[] = [
     { key: 'nome', label: 'Nome da Avaliação' },
     { key: 'tipo', label: 'Tipo' },
@@ -279,7 +404,7 @@ export class AssessmentListComponent implements OnInit {
   get filteredAvailableQuestions() {
     const linkedIds = new Set(this.linkedQuestions.map(lq => lq.id_questao));
     let available = this.allQuestions.filter(q => !linkedIds.has(q.id));
-    
+
     if (this.selectedAreaId) {
       available = available.filter(q => q.id_area_conhecimento === this.selectedAreaId);
     }
@@ -298,6 +423,7 @@ export class AssessmentListComponent implements OnInit {
   ngOnInit() {
     this.refresh();
     this.knowledgeService.getAreas().subscribe(data => this.areas = data);
+    this.courseService.getCourses().subscribe(data => this.courses = data);
   }
 
   refresh() {
@@ -316,7 +442,7 @@ export class AssessmentListComponent implements OnInit {
       this.editingAssessment = null;
       this.assessmentForm = {
         nome: '', tipo: 'DIAGNOSTICA', status: 'RASCUNHO',
-        nota_total: 10, duracao: 60, modo_criacao: 'MANUAL', cronometro: true
+        nota_total: 10, duracao: 60, modo_criacao: 'MANUAL', cronometro: true, id_curso: null
       };
     }
     this.isModalOpen = true;
@@ -345,6 +471,7 @@ export class AssessmentListComponent implements OnInit {
     payload.duracao = form.duracao || null;
     payload.modo_criacao = form.modo_criacao;
     payload.cronometro = form.cronometro ? true : false;
+    payload.id_curso = form.id_curso || null;
 
     try {
       if (this.editingAssessment) {
@@ -356,9 +483,8 @@ export class AssessmentListComponent implements OnInit {
         this.toastService.success('Avaliação atualizada!');
         this.closeModal();
         this.refresh();
-        // Open question manager if MANUAL
         if (form.modo_criacao === 'MANUAL') {
-          this.openQuestionsModal(this.editingAssessment.id, form.nome);
+          this.openQuestionsModal(this.editingAssessment.id, form.nome, this.editingAssessment);
         }
       } else {
         const response = await this.assessmentService.createAssessment(payload);
@@ -369,9 +495,8 @@ export class AssessmentListComponent implements OnInit {
         this.toastService.success('Avaliação criada!');
         this.closeModal();
         this.refresh();
-        // Open question manager if MANUAL
         if (form.modo_criacao === 'MANUAL' && response.data) {
-          this.openQuestionsModal(response.data.id, form.nome);
+          this.openQuestionsModal(response.data.id, form.nome, response.data);
         }
       }
     } catch (error: any) {
@@ -381,21 +506,55 @@ export class AssessmentListComponent implements OnInit {
   }
 
   async deleteAssessment(assessment: Assessment) {
-    if (confirm(`Deseja realmente excluir a avaliação "${assessment.nome}"?`)) {
-      try {
-        const { error } = await this.assessmentService.deleteAssessment(assessment.id);
-        if (error) { this.toastService.error('Erro ao excluir: ' + error.message); }
-        else { this.toastService.success('Avaliação excluída!'); this.refresh(); }
-      } catch (error: any) { this.toastService.error('Erro ao excluir avaliação.'); }
+    const confirmed = confirm(
+      `Tem certeza que deseja excluir a avaliação "${assessment.nome}"?\n\n` +
+      `⚠️ ATENÇÃO: Todos os históricos de tentativas dos alunos desta avaliação também serão excluídos. Esta ação não pode ser desfeita.`
+    );
+    if (!confirmed) return;
+
+    try {
+      // 1. Remove os snapshots (tentativas dos alunos) vinculados a esta avaliação
+      const { error: snapError } = await this.assessmentService.deleteSnapshotsByAssessmentId(assessment.id);
+      
+      if (snapError) {
+        this.toastService.error('Erro ao excluir tentativas: ' + snapError.message);
+        return;
+      }
+
+      // 2. Remove as questões vinculadas à avaliação (tabela de junção)
+      const { error: qError } = await this.assessmentService.deleteQuestionsLinksByAssessmentId(assessment.id);
+      
+      if (qError) {
+        this.toastService.error('Erro ao excluir vínculos de questões: ' + qError.message);
+        return;
+      }
+
+      // 3. Deleta a avaliação em si
+      const { error } = await this.assessmentService.deleteAssessment(assessment.id);
+      if (error) {
+        this.toastService.error('Erro ao excluir avaliação: ' + error.message);
+      } else {
+        this.toastService.success('Avaliação excluída com sucesso!');
+        this.refresh();
+      }
+    } catch (error: any) {
+      this.toastService.error('Erro inesperado ao excluir avaliação.');
     }
   }
 
   // ====== QUESTIONS MANAGER MODAL ======
-  openQuestionsModal(assessmentId: string, assessmentName: string) {
+  openQuestionsModal(assessmentId: string, assessmentName: string, assessment?: Assessment) {
     this.currentAssessmentId = assessmentId;
     this.currentAssessmentName = assessmentName;
     this.questionSearch = '';
     this.selectedAreaId = '';
+    this.contentRules = [];
+    // Pré-carregar regras salvas da avaliação
+    if (assessment?.regras_nota_minima_conteudo) {
+      this._pendingRules = assessment.regras_nota_minima_conteudo;
+    } else {
+      this._pendingRules = {};
+    }
     this.loadLinkedQuestions();
     this.loadAllQuestions();
     this.isQuestionsModalOpen = true;
@@ -405,9 +564,13 @@ export class AssessmentListComponent implements OnInit {
     this.isQuestionsModalOpen = false;
   }
 
+  /** Mapa de regras carregadas da avaliação, aplicado após carregar questões */
+  private _pendingRules: Record<string, number> = {};
+
   loadLinkedQuestions() {
     this.assessmentService.getAssessmentQuestions(this.currentAssessmentId).subscribe(data => {
       this.linkedQuestions = data;
+      this._buildContentRules();
     });
   }
 
@@ -415,6 +578,25 @@ export class AssessmentListComponent implements OnInit {
     this.questionService.getQuestions().subscribe(data => {
       this.allQuestions = data;
     });
+  }
+
+  /** Extrai conteúdos únicos das questões vinculadas e constrói a lista de regras */
+  private _buildContentRules() {
+    const seen = new Set<string>();
+    const rules: ContentRule[] = [];
+
+    for (const lq of this.linkedQuestions) {
+      const q = lq.questions;
+      if (!q?.id_conteudo || !q?.contents?.titulo_tema) continue;
+      if (seen.has(q.id_conteudo)) continue;
+      seen.add(q.id_conteudo);
+      rules.push({
+        id: q.id_conteudo,
+        titulo: q.contents.titulo_tema,
+        notaMinima: this._pendingRules[q.id_conteudo] ?? 0
+      });
+    }
+    this.contentRules = rules;
   }
 
   async linkQuestion(questionId: string) {
@@ -434,6 +616,33 @@ export class AssessmentListComponent implements OnInit {
     } else {
       this.toastService.success('Questão removida!');
       this.loadLinkedQuestions();
+    }
+  }
+
+  /** Salva as regras de nota mínima por conteúdo */
+  async saveContentRules() {
+    this.savingRules = true;
+    const regras: Record<string, number> = {};
+    for (const rule of this.contentRules) {
+      if (rule.notaMinima > 0) {
+        regras[rule.id] = rule.notaMinima;
+      }
+    }
+    try {
+      const { error } = await this.assessmentService.updateAssessmentRules(
+        this.currentAssessmentId,
+        regras
+      );
+      if (error) {
+        this.toastService.error('Erro ao salvar regras: ' + error.message);
+      } else {
+        this.toastService.success('Regras salvas com sucesso!');
+        this._pendingRules = regras;
+      }
+    } catch (e: any) {
+      this.toastService.error('Erro inesperado ao salvar regras.');
+    } finally {
+      this.savingRules = false;
     }
   }
 }

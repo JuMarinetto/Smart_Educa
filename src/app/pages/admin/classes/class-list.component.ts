@@ -36,7 +36,7 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
         (delete)="deleteClass($event)">
       </app-data-table>
 
-      <app-ui-modal [title]="editingClass ? 'Editar Turma' : 'Nova Turma'" [(isOpen)]="isModalOpen">
+      <app-ui-modal [title]="editingClass ? 'Editar Turma' : 'Nova Turma'" [(isOpen)]="isModalOpen" width="620px">
         <form (submit)="saveClass($event)" class="admin-form" id="classForm">
           <div class="form-alert form-alert-error" *ngIf="showError">
             <lucide-icon name="AlertCircle" size="18"></lucide-icon>
@@ -132,37 +132,47 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
   styles: [`
     .container { padding: 2rem; margin-left: 280px; }
     .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; }
-    .btn-primary { background: var(--primary); color: white; padding: 0.8rem 1.5rem; border-radius: 8px; display: flex; align-items: center; gap: 8px; font-weight: 600; border: none; cursor: pointer; }
+    .btn-primary { background: var(--primary); color: white; padding: 0.8rem 1.5rem; border-radius: 8px; display: flex; align-items: center; gap: 8px; font-weight: 600; border: none; cursor: pointer; white-space: nowrap; }
     .btn-secondary { background: var(--bg-main); border: 1px solid var(--border); color: var(--text-main); padding: 0.8rem 1.5rem; border-radius: 8px; cursor: pointer; }
-    
+
     .admin-form { display: flex; flex-direction: column; gap: 1.5rem; }
     .form-group { display: flex; flex-direction: column; gap: 0.5rem; }
     .form-group label { font-size: 0.9rem; font-weight: 600; color: var(--text-muted); }
-    .form-group input, .form-group select { padding: 0.75rem; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-main); color: var(--text-main); }
+    .form-group input, .form-group select { padding: 0.75rem; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-main); color: var(--text-main); width: 100%; box-sizing: border-box; }
     .form-actions { display: flex; justify-content: flex-end; gap: 1rem; }
-    
+
+    /* Courses management */
     .courses-management { display: flex; flex-direction: column; gap: 0.5rem; }
-    .add-course-controls { display: flex; gap: 0.5rem; }
-    .course-select { flex: 1; padding: 0.5rem; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-main); color: var(--text-main); font-size: 0.85rem; }
-    .linked-courses-list { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.25rem; }
-    .linked-course-item { display: flex; align-items: center; gap: 6px; background: rgba(var(--primary), 0.1); color: var(--primary); padding: 4px 10px; border-radius: 100px; font-size: 0.8rem; font-weight: 600; border: 1px solid rgba(var(--primary), 0.2); }
-    
-    .students-section { margin-top: 2rem; border-top: 2px dashed var(--border); padding-top: 1.5rem; }
-    .students-section h3 { font-size: 1.1rem; margin-bottom: 1rem; color: var(--text-main); }
-    
-    .add-student-controls { display: flex; gap: 1rem; margin-bottom: 1rem; }
-    .student-select { flex: 1; padding: 0.75rem; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-main); color: var(--text-main); }
-    .btn-sm { padding: 0.5rem 1rem; font-size: 0.9rem; }
-    
-    .students-list { display: flex; flex-direction: column; gap: 0.5rem; max-height: 250px; overflow-y: auto; padding-right: 0.5rem; }
+    .courses-management > label { font-size: 0.9rem; font-weight: 600; color: var(--text-muted); }
+    .add-course-controls { display: flex; gap: 0.5rem; align-items: center; }
+    .course-select { flex: 1; min-width: 0; padding: 0.6rem 0.75rem; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-main); color: var(--text-main); font-size: 0.9rem; }
+    .linked-courses-list { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.25rem; min-height: 28px; }
+    .linked-course-item { display: flex; align-items: center; gap: 6px; background: rgba(139,92,246,0.12); color: var(--primary); padding: 4px 10px; border-radius: 100px; font-size: 0.8rem; font-weight: 600; border: 1px solid rgba(139,92,246,0.25); }
+
+    /* Students section */
+    .students-section { margin-top: 1.5rem; border-top: 2px dashed var(--border); padding-top: 1.5rem; }
+    .students-section h3 { font-size: 1rem; font-weight: 700; margin-bottom: 1rem; color: var(--text-main); }
+
+    .add-student-controls { display: flex; gap: 0.75rem; margin-bottom: 1rem; align-items: center; }
+    .student-select { flex: 1; min-width: 0; padding: 0.7rem 0.75rem; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-main); color: var(--text-main); font-size: 0.9rem; }
+    .btn-sm { padding: 0.6rem 1rem; font-size: 0.875rem; flex-shrink: 0; min-width: 100px; justify-content: center; }
+
+    .students-list { display: flex; flex-direction: column; gap: 0.5rem; max-height: 260px; overflow-y: auto; padding-right: 0.25rem; }
     .student-item { display: flex; justify-content: space-between; align-items: center; padding: 0.75rem 1rem; background: var(--bg-main); border: 1px solid var(--border); border-radius: 8px; }
-    .student-info { display: flex; flex-direction: column; }
-    .student-name { font-weight: 600; font-size: 0.9rem; color: var(--text-main); }
-    .student-email { font-size: 0.8rem; color: var(--text-muted); }
-    .btn-remove { background: none; border: none; color: #ef4444; cursor: pointer; padding: 4px; border-radius: 4px; transition: background 0.2s; }
-    .btn-remove:hover { background: rgba(239, 68, 68, 0.1); }
-    
-    .empty-state { text-align: center; padding: 2rem; color: var(--text-muted); font-size: 0.9rem; background: var(--bg-main); border-radius: 8px; border: 1px dashed var(--border); }
+    .student-info { display: flex; flex-direction: column; min-width: 0; }
+    .student-name { font-weight: 600; font-size: 0.9rem; color: var(--text-main); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .student-email { font-size: 0.78rem; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .btn-remove { background: none; border: none; color: #ef4444; cursor: pointer; padding: 6px; border-radius: 6px; transition: background 0.2s; flex-shrink: 0; }
+    .btn-remove:hover { background: rgba(239,68,68,0.12); }
+
+    .empty-state { text-align: center; padding: 1.5rem; color: var(--text-muted); font-size: 0.875rem; background: var(--bg-main); border-radius: 8px; border: 1px dashed var(--border); }
+
+    /* Error states */
+    .form-alert { display: flex; align-items: center; gap: 8px; padding: 0.75rem 1rem; border-radius: 8px; font-size: 0.875rem; font-weight: 500; }
+    .form-alert-error { background: rgba(239,68,68,0.1); color: #ef4444; border: 1px solid rgba(239,68,68,0.25); }
+    .invalid-input { border-color: #ef4444 !important; }
+    .error-hint { font-size: 0.78rem; color: #ef4444; }
+    .required-star { color: #ef4444; }
   `]
 })
 export class ClassListComponent implements OnInit {
@@ -257,7 +267,7 @@ export class ClassListComponent implements OnInit {
     event.preventDefault();
     this.showError = false;
 
-    if (!this.classForm.nome_turma || !this.classForm.id_curso) {
+    if (!this.classForm.nome_turma || (!this.editingClass && !this.classForm.id_curso)) {
       this.showError = true;
       return;
     }

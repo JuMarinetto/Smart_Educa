@@ -7,8 +7,6 @@ import { adminGuard } from './core/guards/admin.guard';
 import { studentGuard } from './core/guards/student.guard';
 
 import { DashboardComponent } from './pages/dashboard/dashboard.component';
-import { CoursesComponent } from './pages/courses/courses.component';
-import { CertificationsComponent } from './pages/certifications/certifications.component';
 import { SettingsComponent } from './pages/settings/settings.component';
 import { ContentsComponent } from './pages/admin/contents/contents.component';
 import { CourseBuilderComponent } from './pages/admin/courses/course-builder/course-builder.component';
@@ -18,6 +16,7 @@ import { ProfileListComponent } from './pages/admin/profiles/profile-list.compon
 import { CourseListComponent } from './pages/admin/courses/course-list.component';
 import { AssessmentListComponent } from './pages/admin/assessments/assessment-list.component';
 import { ClassListComponent } from './pages/admin/classes/class-list.component';
+import { ExcelImportComponent } from './pages/admin/excel-import/excel-import.component';
 
 import { AccessTimeReportComponent } from './pages/reports/access-time.component';
 import { ContentAccessedReportComponent } from './pages/reports/content-accessed.component';
@@ -59,13 +58,12 @@ export const routes: Routes = [
       { path: 'courses', component: CourseListComponent },
       { path: 'assessments', component: AssessmentListComponent },
       { path: 'classes', component: ClassListComponent },
+      { path: 'excel-import', component: ExcelImportComponent },
       { path: 'course-builder', component: CourseBuilderComponent },
 
-      // Cursos (Visão Admin/Professor - legado)
-      { path: 'courses-view', component: CoursesComponent },
+      // Visualização de Cursos e Avaliações
       { path: 'course-player/:id', component: CoursePlayerComponent },
       { path: 'assessment/:id', component: AssessmentTakeComponent },
-      { path: 'certifications', component: CertificationsComponent },
 
       // Relatórios
       { path: 'reports/access-time', component: AccessTimeReportComponent },

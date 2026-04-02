@@ -17,7 +17,7 @@ import { forkJoin } from 'rxjs';
       <!-- Hero / Welcome -->
       <section class="hero">
         <div class="hero-content">
-          <h1>Olá, Aluno! 👋</h1>
+          <h1>Olá, {{ studentName }}! 👋</h1>
           <p>Continue de onde parou ou explore novos conteúdos.</p>
           <div class="hero-actions">
             <button class="btn-accent" routerLink="/student/catalog">
@@ -463,6 +463,12 @@ export class StudentDashboardComponent implements OnInit {
     this.assessmentService.getAvailableAssessments().subscribe(data => {
       this.assessments = data;
     });
+  }
+
+  get studentName(): string {
+    const nome = this.authService.getLoggedProfile()?.nome || 'Aluno';
+    // Usa só o primeiro nome para não ficar longo
+    return nome.split(' ')[0];
   }
 
   getGradient(i: number): string {

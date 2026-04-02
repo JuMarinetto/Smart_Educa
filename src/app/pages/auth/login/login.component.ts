@@ -13,6 +13,7 @@ import { AuthService } from '../../../core/services/auth.service';
     <div class="login-card">
       <div class="logo">
         <img src="assets/logo.png" alt="Logo" class="custom-logo" />
+        <p class="brand-name">SmartEduca</p>
       </div>
 
       <h2>Bem-vindo(a)</h2>
@@ -47,15 +48,15 @@ import { AuthService } from '../../../core/services/auth.service';
         </button>
       </form>
 
-      <div class="divider"><span>EscolaIA</span></div>
-      <p class="register-hint">Plataforma de ensino inteligente.</p>
+      <div class="divider"><span>Plataforma de ensino inteligente</span></div>
     </div>
   `,
   styles: [`
     :host { display: flex; align-items: center; justify-content: center; min-height: 100vh; background: var(--bg-main); }
     .login-card { background: var(--bg-card); padding: 3rem; border-radius: 20px; box-shadow: var(--shadow-lg); width: 100%; max-width: 440px; text-align: center; border: 1px solid var(--border); }
-    .logo { display: flex; align-items: center; justify-content: center; margin-bottom: 2rem; }
+    .logo { display: flex; flex-direction: column; align-items: center; justify-content: center; margin-bottom: 2rem; gap: 0.6rem; }
     .custom-logo { max-height: 80px; max-width: 100%; background-color: #ffffff; border-radius: 12px; padding: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+    .brand-name { font-size: 1.6rem; font-weight: 800; letter-spacing: 0.5px; background: linear-gradient(135deg, #8b5cf6, #ec4899); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; margin: 0; line-height: 1; }
     h2 { color: var(--text-main); font-size: 1.5rem; font-weight: 800; margin-bottom: 0.5rem; }
     .subtitle { color: #8b82a8; font-size: 0.9rem; margin-bottom: 2rem; }
     .alert { background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.25); color: #f87171; padding: 0.75rem 1rem; border-radius: 10px; margin-bottom: 1.5rem; display: flex; align-items: center; gap: 8px; font-size: 0.85rem; font-weight: 500; text-align: left; }

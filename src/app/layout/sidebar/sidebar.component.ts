@@ -16,6 +16,7 @@ import { Profile } from '../../core/models/profile.model';
       <div class="sidebar-top">
         <div class="logo" routerLink="/admin/dashboard">
           <img src="assets/logo.png" alt="Logo" class="custom-logo" />
+          <p class="brand-name">SmartEduca</p>
         </div>
 
         <nav class="nav-section">
@@ -47,6 +48,10 @@ import { Profile } from '../../core/models/profile.model';
           <a class="nav-item" routerLink="/admin/profiles" routerLinkActive="active">
             <lucide-icon name="Settings" size="18"></lucide-icon>
             <span>Gestão de Perfis</span>
+          </a>
+          <a class="nav-item" routerLink="/admin/excel-import" routerLinkActive="active">
+            <lucide-icon name="FileSpreadsheet" size="18"></lucide-icon>
+            <span>Importar Excel</span>
           </a>
         </nav>
 
@@ -155,12 +160,14 @@ import { Profile } from '../../core/models/profile.model';
 
     .logo {
       display: flex;
+      flex-direction: column;
       align-items: center;
       justify-content: center;
       padding: 0 0.75rem;
       margin-bottom: 2rem;
       cursor: pointer;
       text-decoration: none;
+      gap: 0.5rem;
     }
     .custom-logo {
       max-height: 48px;
@@ -169,6 +176,17 @@ import { Profile } from '../../core/models/profile.model';
       border-radius: 6px;
       padding: 6px;
       transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .brand-name {
+      font-size: 1.3rem;
+      font-weight: 800;
+      letter-spacing: 0.5px;
+      background: linear-gradient(135deg, #8b5cf6, #ec4899);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin: 0;
+      line-height: 1;
     }
 
     .nav-section { margin-bottom: 1.25rem; }

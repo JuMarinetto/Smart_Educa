@@ -20,6 +20,7 @@ import { Profile } from '../../core/models/profile.model';
         <div class="sidebar-top">
           <div class="logo" (click)="sidebarCollapsed = !sidebarCollapsed">
             <img src="assets/logo.png" alt="Logo" class="custom-logo" [class.collapsed-logo]="sidebarCollapsed" />
+            <p class="brand-name" *ngIf="!sidebarCollapsed">SmartEduca</p>
           </div>
 
           <div class="search-box" *ngIf="!sidebarCollapsed">
@@ -186,11 +187,13 @@ import { Profile } from '../../core/models/profile.model';
 
     .logo {
       display: flex;
+      flex-direction: column;
       align-items: center;
       justify-content: center;
       padding: 0 0.5rem;
       margin-bottom: 1.5rem;
       cursor: pointer;
+      gap: 0.5rem;
     }
     .custom-logo {
       max-height: 48px;
@@ -203,6 +206,18 @@ import { Profile } from '../../core/models/profile.model';
     .custom-logo.collapsed-logo {
       max-height: 36px;
       padding: 4px;
+    }
+    .brand-name {
+      font-size: 1.25rem;
+      font-weight: 800;
+      letter-spacing: 0.5px;
+      background: linear-gradient(135deg, #8b5cf6, #ec4899);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin: 0;
+      line-height: 1;
+      white-space: nowrap;
     }
 
     .search-box {

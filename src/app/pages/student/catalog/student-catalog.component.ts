@@ -531,13 +531,11 @@ export class StudentCatalogComponent implements OnInit {
     if (!this.studentId || course.enrolling) return;
     course.enrolling = true;
 
-    // Find a class that contains this course and enroll
     this.courseService.getClassesForCourse(course.id).subscribe({
       next: async (classes) => {
         let classId: string;
 
         if (classes.length === 0) {
-          // Auto-create a turma for this course
           const created = await this.courseService.autoCreateClassForCourse(course.id, course.titulo);
           if (!created) {
             course.enrolling = false;
@@ -552,7 +550,6 @@ export class StudentCatalogComponent implements OnInit {
         const { error } = await this.courseService.enrollStudent(classId, this.studentId!);
 
         if (error) {
-          // Check if already enrolled (duplicate key)
           if ((error as any).code === '23505') {
             course.enrolled = true;
             this.showToast('Você já está matriculado neste curso!', false);

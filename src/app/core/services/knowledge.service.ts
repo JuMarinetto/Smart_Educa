@@ -8,16 +8,16 @@ import { from, map, switchMap } from 'rxjs';
   providedIn: 'root'
 })
 export class KnowledgeService {
-  private supabaseService = inject(SupabaseService);
-  private supabase = this.supabaseService.client;
+  private supabase = inject(SupabaseService).client;
 
+  /** Retorna todas as áreas de conhecimento, opcionalmente filtradas por caminho raiz (ltree). */
   getAreas(rootPath?: string) {
     let query = this.supabase
       .from('knowledge_areas')
       .select('*');
 
     if (rootPath) {
-      // Use ltree operator <@ (is descendant of): path <@ rootPath
+      // Filtro ltree: cs = "contains" — retorna áreas que pertencem ao caminho raiz
       query = query.filter('path', 'cs', rootPath);
     }
 
@@ -26,51 +26,33 @@ export class KnowledgeService {
     ).pipe(map(res => (res.data as any[]) || []));
   }
 
+  /** Retorna conteúdos de uma área de conhecimento específica (ou todos, se sem filtro). */
   getContentsByArea(areaId: string) {
-    if (areaId) {
-      return from(
-        this.supabase.from('knowledge_areas').select('path').eq('id', areaId).single()
-      ).pipe(
-        switchMap(res => {
-          if (res.error) {
-            console.error('Error fetching area path:', res.error);
-            throw res.error;
-          }
-          const path = res.data?.path;
-          if (path) {
-            // Use 'cs' (contains) for ltree descendant check: path <@ area_path
-            return from(this.supabase
-              .from('contents')
-              .select('*, knowledge_areas!inner(path)')
-              .eq('is_latest', true)
-              .filter('knowledge_areas.path', 'cs', path)
-            );
-          }
-          return from(this.supabase
-            .from('contents')
-            .select('*, knowledge_areas!inner(path)')
-            .eq('is_latest', true)
-          );
-        }),
-        map((res: any) => {
-          if (res.error) {
-            console.error('Error fetching contents by area:', res.error);
-            return [];
-          }
-          return (res.data as Content[]) || [];
-        })
-      );
-    }
-
     return from(
-      this.supabase
-        .from('contents')
-        .select('*, knowledge_areas(path)')
-        .eq('is_latest', true)
+      this.supabase.from('knowledge_areas').select('path').eq('id', areaId).single()
     ).pipe(
-      map(res => {
+      switchMap(res => {
         if (res.error) {
-          console.error('Error fetching all contents:', res.error);
+          console.error('Erro ao buscar caminho da área:', res.error);
+          throw res.error;
+        }
+
+        const path = res.data?.path;
+        const query = this.supabase
+          .from('contents')
+          .select('*, knowledge_areas!inner(path)')
+          .eq('is_latest', true);
+
+        // Aplica filtro de descendência ltree se o caminho estiver disponível
+        if (path) {
+          return from(query.filter('knowledge_areas.path', 'cs', path));
+        }
+
+        return from(query);
+      }),
+      map((res: any) => {
+        if (res.error) {
+          console.error('Erro ao buscar conteúdos por área:', res.error);
           return [];
         }
         return (res.data as Content[]) || [];
@@ -90,7 +72,8 @@ export class KnowledgeService {
     return await this.supabase.from('knowledge_areas').delete().eq('id', id);
   }
 
-  // Content Management
+  // ─── Gestão de Conteúdos ────────────────────────────────────────────────────
+
   async createContent(content: Partial<Content>) {
     return await this.supabase.from('contents').insert(content);
   }

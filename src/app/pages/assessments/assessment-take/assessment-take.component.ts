@@ -1,8 +1,10 @@
 import { Component, inject, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { RouterModule, ActivatedRoute, Router } from '@angular/router';
+import { RouterModule, ActivatedRoute, Router, NavigationEnd } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { LucideAngularModule } from 'lucide-angular';
+import { forkJoin, Subscription } from 'rxjs';
+import { filter } from 'rxjs/operators';
 import { AssessmentService } from '../../../core/services/assessment.service';
 import { AuthService } from '../../../core/services/auth.service';
 import { ToastService } from '../../../shared/components/toast/toast.service';
@@ -28,7 +30,7 @@ import { ProgressService } from '../../../core/services/progress.service';
           </div>
           <h1>{{ assessment.nome }}</h1>
           <p class="pre-subtitle">Leia as instruções antes de iniciar.</p>
-          
+
           <div class="info-grid">
             <div class="info-item">
               <lucide-icon name="Tag" size="16"></lucide-icon>
@@ -66,13 +68,11 @@ import { ProgressService } from '../../../core/services/progress.service';
           </div>
         </div>
 
-        <!-- Progress -->
         <div class="progress-bar-container">
           <div class="progress-bar-fill" [style.width.%]="progressPercent"></div>
         </div>
         <p class="progress-label">Questão {{ currentIndex + 1 }} de {{ questions.length }}</p>
 
-        <!-- Current Question -->
         <div class="question-card" *ngIf="currentQuestion">
           <div class="q-header">
             <span class="q-num">{{ currentIndex + 1 }}</span>
@@ -90,7 +90,6 @@ import { ProgressService } from '../../../core/services/progress.service';
           </div>
         </div>
 
-        <!-- Navigation -->
         <div class="exam-nav">
           <button class="btn-nav" (click)="prevQuestion()" [disabled]="currentIndex === 0">
             <lucide-icon name="ChevronLeft" size="18"></lucide-icon>
@@ -115,40 +114,112 @@ import { ProgressService } from '../../../core/services/progress.service';
         </div>
       </div>
 
-      <!-- SUBMITTED -->
+      <!-- RESULT SCREEN -->
       <div class="result-area" *ngIf="submitted">
         <div class="result-card">
           <div class="result-icon" [class.success]="passed" [class.failed]="!passed">
             <lucide-icon [name]="passed ? 'CheckCircle' : 'XCircle'" size="48"></lucide-icon>
           </div>
-          
-          <ng-container *ngIf="alreadyCompleted; else justCompleted">
-            <h2>Avaliação já realizada</h2>
-            <p>Você já concluiu esta avaliação. Confira sua nota abaixo.</p>
-          </ng-container>
-          <ng-template #justCompleted>
-            <h2>{{ passed ? 'Parabéns, Aprovado!' : 'Reprovado' }}</h2>
-            <p>{{ passed ? 'Você atingiu a nota mínima!' : 'Você não atingiu a nota mínima. Revise o conteúdo e tente novamente.' }}</p>
-          </ng-template>
 
+          <h2>{{ passed ? 'Parabéns, Aprovado!' : 'Reprovado' }}</h2>
+          <p>{{ passed ? 'Você atingiu a nota mínima exigida!' : 'Você não atingiu a nota mínima. Revise o conteúdo e tente novamente.' }}</p>
+
+          <!-- Score geral -->
           <div class="score-display">
             <div class="score-circle" [class.pass]="passed" [class.fail]="!passed">
               <span class="score-value">{{ scoreObtained | number:'1.1-1' }}</span>
               <span class="score-divider">de {{ assessment?.nota_total }}</span>
             </div>
             <div class="score-details">
-              <div class="score-row" *ngIf="questions.length > 0"><span>Acertos:</span><strong>{{ correctCount }} / {{ questions.length }}</strong></div>
+              <div class="score-row" *ngIf="!alreadyCompleted">
+                <span>Acertos:</span><strong>{{ correctCount }} / {{ questions.length }}</strong>
+              </div>
               <div class="score-row"><span>Percentual:</span><strong>{{ scorePercent | number:'1.0-0' }}%</strong></div>
               <div class="score-row"><span>Nota de corte:</span><strong>{{ passingScore | number:'1.1-1' }}</strong></div>
-              <div class="score-row"><span>Status:</span><strong [class.text-success]="passed" [class.text-danger]="!passed">{{ passed ? 'APROVADO' : 'REPROVADO' }}</strong></div>
+              <div class="score-row">
+                <span>Status:</span>
+                <strong [class.text-success]="passed" [class.text-danger]="!passed">
+                  {{ passed ? 'APROVADO' : 'REPROVADO' }}
+                </strong>
+              </div>
             </div>
           </div>
 
+          <!-- Notas por Módulo/Conteúdo -->
+          <div class="module-scores" *ngIf="moduleScores.length > 0">
+            <h3 class="module-scores-title">
+              <lucide-icon name="BookOpen" size="16"></lucide-icon>
+              Desempenho por Módulo
+            </h3>
+            <div class="module-row" *ngFor="let mod of moduleScores"
+                 [class.mod-pass]="mod.passed" [class.mod-fail]="!mod.passed">
+              <div class="mod-info">
+                <span class="mod-name">{{ mod.nome }}</span>
+                <span class="mod-status-badge" [class.badge-pass]="mod.passed" [class.badge-fail]="!mod.passed">
+                  {{ mod.passed ? 'OK' : 'Abaixo do mínimo' }}
+                </span>
+              </div>
+              <div class="mod-bar-wrap">
+                <div class="mod-bar-track">
+                  <div class="mod-bar-fill"
+                       [class.bar-pass]="mod.passed" [class.bar-fail]="!mod.passed"
+                       [style.width.%]="mod.maxScore > 0 ? (mod.obtained / mod.maxScore) * 100 : 0"></div>
+                  <div class="mod-bar-min" *ngIf="mod.required > 0"
+                       [style.left.%]="mod.maxScore > 0 ? (mod.required / mod.maxScore) * 100 : 60"
+                       title="Mínimo: {{ mod.required | number:'1.1-1' }}"></div>
+                </div>
+                <span class="mod-score-text">{{ mod.obtained | number:'1.1-1' }} / {{ mod.maxScore | number:'1.1-1' }}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Revisar Conteúdo (quando reprovado) -->
+          <div class="review-prompt" *ngIf="!passed">
+            <div class="review-prompt-header">
+              <lucide-icon name="BookOpen" size="20"></lucide-icon>
+              <strong>Revise o conteúdo antes de tentar novamente</strong>
+            </div>
+
+            <!-- Ainda não revisou -->
+            <ng-container *ngIf="!hasReviewed">
+              <p class="review-prompt-text">
+                Para liberar uma nova tentativa, você precisa primeiro visitar o
+                material de estudo do curso relacionado.
+              </p>
+              <!-- Com curso vinculado: botão que leva ao curso -->
+              <button class="btn-review" *ngIf="relatedCourseId || firstFailedCourseId" (click)="goToCourseReview()">
+                <lucide-icon name="ExternalLink" size="16"></lucide-icon>
+                Revisar Conteúdo
+              </button>
+              <!-- Sem curso vinculado: confirmação manual -->
+              <button class="btn-review-confirm" *ngIf="!relatedCourseId && !firstFailedCourseId" (click)="markReviewed()">
+                <lucide-icon name="Check" size="16"></lucide-icon>
+                Confirmar que revisei o conteúdo
+              </button>
+            </ng-container>
+
+            <!-- Já revisou -->
+            <div class="review-done" *ngIf="hasReviewed">
+              <lucide-icon name="CheckCircle" size="16"></lucide-icon>
+              Revisão concluída! Você já pode tentar novamente.
+            </div>
+          </div>
+
+          <!-- Ações -->
           <div class="result-actions">
-            <button class="btn-back" [routerLink]="['/student/assessments']" [queryParams]="{tab: 'completed'}">
-              <lucide-icon name="ArrowLeft" size="18"></lucide-icon>
-              Voltar às Avaliações
+            <!-- Tentar Novamente: só liberado após revisar o curso -->
+            <button class="btn-retry" *ngIf="!passed"
+                    [disabled]="!hasReviewed"
+                    [title]="!hasReviewed ? 'Revise o conteúdo do curso acima para liberar' : ''"
+                    (click)="resetForRetry()">
+              <lucide-icon name="RefreshCw" size="18"></lucide-icon>
+              Tentar Novamente
             </button>
+
+            <a class="btn-back" [routerLink]="['/student/assessments']">
+              <lucide-icon name="ArrowLeft" size="18"></lucide-icon>
+              {{ passed ? 'Voltar às Avaliações' : 'Ver Minhas Avaliações' }}
+            </a>
           </div>
         </div>
       </div>
@@ -164,7 +235,7 @@ import { ProgressService } from '../../../core/services/progress.service';
 
     /* LOADING */
     .loading-state { text-align: center; padding: 4rem; color: var(--text-muted); }
-    .loading-state lucide-icon { animation: spin 1s linear infinite; }
+    .loading-state lucide-icon { animation: spin 1s linear infinite; display: block; margin: 0 auto 1rem; }
     @keyframes spin { to { transform: rotate(360deg); } }
 
     /* PRE-START */
@@ -181,21 +252,18 @@ import { ProgressService } from '../../../core/services/progress.service';
     .btn-start:disabled { opacity: 0.5; cursor: not-allowed; }
     .warn-text { color: #f59e0b; font-size: 0.85rem; margin-top: 1rem; }
 
-    /* EXAM AREA */
+    /* EXAM */
     .exam-top-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
     .exam-top-bar h2 { font-size: 1.1rem; font-weight: 700; }
     .timer { display: flex; align-items: center; gap: 6px; background: rgba(6,182,212,0.1); color: var(--take-accent); padding: 0.5rem 1rem; border-radius: 8px; font-weight: 700; font-size: 0.95rem; }
-
     .progress-bar-container { height: 4px; background: rgba(255,255,255,0.06); border-radius: 4px; overflow: hidden; margin-bottom: 0.5rem; }
     .progress-bar-fill { height: 100%; background: var(--take-accent); transition: width 0.3s; border-radius: 4px; }
     .progress-label { font-size: 0.8rem; color: var(--text-muted, #8b82a8); margin-bottom: 1.5rem; }
-
     .question-card { background: var(--bg-card, #1a1230); border: 1px solid var(--border, rgba(255,255,255,0.06)); border-radius: 14px; padding: 2rem; }
     .q-header { display: flex; align-items: center; gap: 12px; margin-bottom: 1rem; }
     .q-num { width: 36px; height: 36px; border-radius: 10px; background: var(--take-accent-glow); color: var(--take-accent); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 0.9rem; flex-shrink: 0; }
     .q-header h3 { font-size: 1rem; font-weight: 600; }
     .q-enunciado { font-size: 0.95rem; line-height: 1.6; color: var(--text-main, #e8e4f0); margin-bottom: 1.5rem; }
-
     .alternatives { display: flex; flex-direction: column; gap: 0.6rem; }
     .alt-item { display: flex; align-items: center; gap: 12px; padding: 0.9rem 1rem; border: 1px solid var(--border, rgba(255,255,255,0.06)); border-radius: 10px; cursor: pointer; transition: all 0.2s; }
     .alt-item:hover { border-color: rgba(6,182,212,0.3); background: rgba(6,182,212,0.03); }
@@ -203,29 +271,26 @@ import { ProgressService } from '../../../core/services/progress.service';
     .alt-radio { width: 20px; height: 20px; border-radius: 50%; border: 2px solid var(--border, rgba(255,255,255,0.15)); flex-shrink: 0; transition: all 0.2s; }
     .alt-radio.active { border-color: var(--take-accent); background: var(--take-accent); box-shadow: inset 0 0 0 3px var(--bg-card, #1a1230); }
     .alt-item span { font-size: 0.9rem; }
-
-    /* NAV */
     .exam-nav { display: flex; align-items: center; justify-content: space-between; margin-top: 1.5rem; gap: 1rem; }
     .btn-nav { display: flex; align-items: center; gap: 6px; background: var(--bg-card, #1a1230); border: 1px solid var(--border, rgba(255,255,255,0.06)); color: var(--text-main, #e8e4f0); padding: 0.6rem 1rem; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 0.85rem; }
     .btn-nav:disabled { opacity: 0.3; cursor: not-allowed; }
     .btn-submit { display: flex; align-items: center; gap: 6px; background: linear-gradient(135deg, #06b6d4, #0ea5e9); color: white; border: none; padding: 0.6rem 1.2rem; border-radius: 8px; cursor: pointer; font-weight: 700; font-size: 0.85rem; }
     .btn-submit:disabled { opacity: 0.5; }
-
     .q-dots { display: flex; gap: 4px; flex-wrap: wrap; justify-content: center; }
     .dot { width: 28px; height: 28px; border-radius: 6px; background: rgba(255,255,255,0.05); color: var(--text-muted, #8b82a8); display: flex; align-items: center; justify-content: center; font-size: 0.7rem; font-weight: 600; cursor: pointer; transition: all 0.15s; }
     .dot.current { background: var(--take-accent); color: white; }
     .dot.answered:not(.current) { background: rgba(6,182,212,0.15); color: var(--take-accent); }
 
     /* RESULT */
-    .result-area { display: flex; justify-content: center; padding-top: 3rem; }
-    .result-card { background: var(--bg-card, #1a1230); border: 1px solid var(--border, rgba(255,255,255,0.06)); border-radius: 16px; padding: 3rem; text-align: center; max-width: 500px; width: 100%; }
+    .result-area { display: flex; justify-content: center; padding-top: 2rem; }
+    .result-card { background: var(--bg-card, #1a1230); border: 1px solid var(--border, rgba(255,255,255,0.06)); border-radius: 16px; padding: 2.5rem; text-align: center; max-width: 560px; width: 100%; }
     .result-icon { width: 80px; height: 80px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 1.5rem; }
     .result-icon.success { background: rgba(34,197,94,0.1); color: #22c55e; }
     .result-icon.failed { background: rgba(239,68,68,0.1); color: #ef4444; }
-    .result-card h2 { margin-bottom: 0.5rem; }
-    .result-card p { color: var(--text-muted, #8b82a8); font-size: 0.9rem; }
+    .result-card h2 { margin-bottom: 0.5rem; font-size: 1.4rem; }
+    .result-card > p { color: var(--text-muted, #8b82a8); font-size: 0.9rem; margin-bottom: 0; }
 
-    .score-display { display: flex; align-items: center; gap: 2rem; margin: 1.5rem 0; padding: 1.5rem; background: rgba(255,255,255,0.03); border-radius: 12px; border: 1px solid var(--border, rgba(255,255,255,0.06)); }
+    .score-display { display: flex; align-items: center; gap: 2rem; margin: 1.5rem 0; padding: 1.5rem; background: rgba(255,255,255,0.03); border-radius: 12px; border: 1px solid var(--border, rgba(255,255,255,0.06)); text-align: left; }
     .score-circle { text-align: center; min-width: 100px; }
     .score-value { font-size: 2.2rem; font-weight: 800; display: block; }
     .score-divider { font-size: 0.8rem; color: var(--text-muted, #8b82a8); }
@@ -237,150 +302,186 @@ import { ProgressService } from '../../../core/services/progress.service';
     .text-success { color: #22c55e !important; }
     .text-danger { color: #ef4444 !important; }
 
-    .result-actions { display: flex; gap: 1rem; justify-content: center; margin-top: 0.5rem; }
-    .btn-back { display: inline-flex; align-items: center; gap: 8px; background: rgba(6,182,212,0.1); border: 1px solid rgba(6,182,212,0.2); color: var(--take-accent); padding: 0.7rem 1.2rem; border-radius: 10px; cursor: pointer; font-weight: 600; text-decoration: none; }
-    .btn-back:hover { background: var(--take-accent); color: white; }
-    .btn-back:hover { background: var(--take-accent); color: white; }
+    /* MODULE SCORES */
+    .module-scores { margin: 0 0 1.5rem; text-align: left; }
+    .module-scores-title { display: flex; align-items: center; gap: 8px; font-size: 0.8rem; font-weight: 700; color: var(--text-muted, #8b82a8); margin-bottom: 0.75rem; letter-spacing: 0.06em; text-transform: uppercase; }
+    .module-row { padding: 0.75rem 1rem; border-radius: 10px; margin-bottom: 0.5rem; border: 1px solid transparent; transition: all 0.2s; }
+    .mod-pass { background: rgba(34,197,94,0.04); border-color: rgba(34,197,94,0.12); }
+    .mod-fail { background: rgba(239,68,68,0.04); border-color: rgba(239,68,68,0.12); }
+    .mod-info { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.5rem; }
+    .mod-name { font-size: 0.88rem; font-weight: 600; color: var(--text-main, #e8e4f0); }
+    .mod-status-badge { font-size: 0.7rem; font-weight: 700; padding: 0.15rem 0.55rem; border-radius: 20px; }
+    .badge-pass { background: rgba(34,197,94,0.15); color: #22c55e; }
+    .badge-fail { background: rgba(239,68,68,0.15); color: #ef4444; }
+    .mod-bar-wrap { display: flex; align-items: center; gap: 0.75rem; }
+    .mod-bar-track { flex: 1; height: 6px; background: rgba(255,255,255,0.06); border-radius: 4px; position: relative; overflow: visible; }
+    .mod-bar-fill { height: 100%; border-radius: 4px; transition: width 0.5s ease; }
+    .bar-pass { background: #22c55e; }
+    .bar-fail { background: #ef4444; }
+    .mod-bar-min { position: absolute; top: -3px; width: 2px; height: 12px; background: #f59e0b; border-radius: 2px; transform: translateX(-50%); }
+    .mod-score-text { font-size: 0.78rem; font-weight: 600; color: var(--text-muted, #8b82a8); white-space: nowrap; }
+
+    /* ACTIONS */
+    /* REVIEW PROMPT */
+    .review-prompt { margin: 1.5rem 0 0; padding: 1.25rem 1.5rem; background: rgba(245,158,11,0.06); border: 1px solid rgba(245,158,11,0.25); border-radius: 12px; text-align: left; }
+    .review-prompt-header { display: flex; align-items: center; gap: 10px; color: #f59e0b; margin-bottom: 0.5rem; font-size: 0.95rem; }
+    .review-prompt-text { font-size: 0.85rem; color: var(--text-muted, #8b82a8); margin: 0 0 1rem; line-height: 1.5; }
+    .btn-review { display: inline-flex; align-items: center; gap: 8px; background: rgba(245,158,11,0.12); border: 1px solid rgba(245,158,11,0.35); color: #f59e0b; padding: 0.65rem 1.1rem; border-radius: 9px; cursor: pointer; font-weight: 700; text-decoration: none; font-size: 0.88rem; transition: all 0.2s; }
+    .btn-review:hover { background: rgba(245,158,11,0.2); }
+    .btn-review-confirm { display: inline-flex; align-items: center; gap: 8px; background: rgba(34,197,94,0.08); border: 1px solid rgba(34,197,94,0.3); color: #22c55e; padding: 0.65rem 1.1rem; border-radius: 9px; cursor: pointer; font-weight: 700; font-size: 0.88rem; transition: all 0.2s; }
+    .btn-review-confirm:hover { background: rgba(34,197,94,0.15); }
+    .review-done { display: inline-flex; align-items: center; gap: 6px; color: #22c55e; font-weight: 600; font-size: 0.88rem; }
+
+    .result-actions { display: flex; gap: 0.75rem; justify-content: center; margin-top: 1rem; flex-wrap: wrap; }
+    .btn-back { display: inline-flex; align-items: center; gap: 8px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08); color: var(--text-muted, #8b82a8); padding: 0.7rem 1.2rem; border-radius: 10px; cursor: pointer; font-weight: 600; text-decoration: none; font-size: 0.88rem; transition: all 0.2s; }
+    .btn-back:hover { background: rgba(255,255,255,0.08); color: var(--text-main, #e8e4f0); }
+    .btn-retry { display: inline-flex; align-items: center; gap: 8px; background: linear-gradient(135deg, #06b6d4, #0ea5e9); border: none; color: white; padding: 0.7rem 1.2rem; border-radius: 10px; cursor: pointer; font-weight: 700; font-size: 0.88rem; transition: all 0.2s; }
+    .btn-retry:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 4px 16px var(--take-accent-glow); }
+    .btn-retry:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
   `]
 })
 export class AssessmentTakeComponent implements OnInit, OnDestroy {
   private assessmentService = inject(AssessmentService);
-  private authService = inject(AuthService);
-  private progressService = inject(ProgressService);
-  private toastService = inject(ToastService);
-  private route = inject(ActivatedRoute);
-  private router = inject(Router);
+  private authService      = inject(AuthService);
+  private progressService  = inject(ProgressService);
+  private toastService     = inject(ToastService);
+  private route            = inject(ActivatedRoute);
+  private router           = inject(Router);
 
-  loading = true;
+  loading      = true;
   assessment: any = null;
   questions: any[] = [];
-  answers: Record<string, string> = {}; // questionId -> alternativeId
+  answers: Record<string, string> = {};
   currentIndex = 0;
-  isStarted = false;
+  isStarted    = false;
   isSubmitting = false;
-  submitted = false;
+  submitted    = false;
   alreadyCompleted = false;
   timeLeft = 0;
-  timer: any;
+  private timer: any;
 
-  // --- Result ---
-  scoreObtained = 0;
-  correctCount = 0;
-  scorePercent = 0;
-  passingScore = 0;
-  passed = false;
+  // Result state
+  scoreObtained  = 0;
+  correctCount   = 0;
+  scorePercent   = 0;
+  passingScore   = 0;
+  passed          = false;
+  hasReviewed     = false;   // libera o botão Tentar Novamente
+  relatedCourseId: string | null = null;
 
-  get currentQuestion() {
-    return this.questions[this.currentIndex] || null;
-  }
+  // Chave usada no localStorage para sinalizar retorno da revisão
+  private reviewedKey = '';
+  private routerSub?: Subscription;
 
-  get progressPercent() {
-    return this.questions.length > 0 ? ((this.currentIndex + 1) / this.questions.length) * 100 : 0;
-  }
+  // Desempenho por módulo/conteúdo
+  moduleScores: { nome: string; obtained: number; required: number; maxScore: number; passed: boolean }[] = [];
+  firstFailedContentId: string | null = null;  // para deep-link na revisão
+  firstFailedCourseId:  string | null = null;  // curso do conteudo reprovado
 
+  private assessmentId: string | null = null;
+
+  get currentQuestion() { return this.questions[this.currentIndex] || null; }
+  get progressPercent()  { return this.questions.length > 0 ? ((this.currentIndex + 1) / this.questions.length) * 100 : 0; }
+  get answeredCount()    { return Object.keys(this.answers).length; }
   get formattedTime() {
-    const min = Math.floor(this.timeLeft / 60);
-    const sec = this.timeLeft % 60;
-    return `${min}:${sec.toString().padStart(2, '0')}`;
-  }
-
-  get answeredCount() {
-    return Object.keys(this.answers).length;
+    const m = Math.floor(this.timeLeft / 60);
+    const s = this.timeLeft % 60;
+    return `${m}:${s.toString().padStart(2, '0')}`;
   }
 
   ngOnInit() {
-    const assessmentId = this.route.snapshot.paramMap.get('id');
-    if (!assessmentId) {
+    this.assessmentId = this.route.snapshot.paramMap.get('id');
+    if (!this.assessmentId) {
       this.toastService.error('Avaliação não encontrada.');
       this.router.navigate(['/student/assessments']);
       return;
     }
-    this.loadAssessment(assessmentId);
+    this.reviewedKey = `review_done_${this.assessmentId}`;
+
+    // Escuta eventos de navegação: detecta retorno do course-player para esta tela
+    this.routerSub = this.router.events
+      .pipe(filter(e => e instanceof NavigationEnd))
+      .subscribe((e: any) => {
+        const currentUrl: string = e.urlAfterRedirects || e.url || '';
+        // Rota real: /student/assessment/:id — verifica retorno com flag de revisão
+        const isBackToThisAssessment =
+          currentUrl.includes(`/student/assessment/${this.assessmentId}`) ||
+          currentUrl.includes(`/admin/assessment/${this.assessmentId}`);
+        if (isBackToThisAssessment && localStorage.getItem(this.reviewedKey) === 'true') {
+          this.hasReviewed = true;
+          localStorage.removeItem(this.reviewedKey);
+        }
+      });
+
+    this.loadAssessment(this.assessmentId);
   }
 
   ngOnDestroy() {
     if (this.timer) clearInterval(this.timer);
+    if (this.routerSub) this.routerSub.unsubscribe();
   }
 
   async loadAssessment(assessmentId: string) {
     this.loading = true;
 
-    const profile = this.authService.getLoggedProfile();
+    const profile   = this.authService.getLoggedProfile();
     const studentId = profile?.id;
 
     if (studentId) {
-      // Verifica se o aluno já finalizou essa prova (bypass e trava pro Result Screen)
-      const { data: snaps } = await this.assessmentService.supabase
-        .from('assessment_snapshots')
-        .select('*')
-        .eq('id_aluno', studentId)
-        .eq('id_avaliacao_original', assessmentId)
-        .not('status_aprovacao', 'is', null)
-        .order('data_aplicacao', { ascending: false })
-        .limit(1);
+      // Verifica última tentativa finalizada do aluno
+      const { data: snaps } = await this.assessmentService.getLastSnapshot(studentId, assessmentId);
 
       if (snaps && snaps.length > 0) {
         const snap = snaps[0];
-        this.assessmentService.getAllAssessments().subscribe(assessments => {
-          this.assessment = assessments.find((a: any) => a.id === assessmentId) || null;
-          const notaTotal = this.assessment?.nota_total || 10;
 
-          this.scoreObtained = snap.nota_obtida || 0;
-          this.passed = snap.status_aprovacao;
-          this.passingScore = this.assessment?.nota_corte || (notaTotal * 0.6);
-          this.scorePercent = notaTotal > 0 ? (this.scoreObtained / notaTotal) * 100 : 0;
-          this.questions = [];
-
-          this.alreadyCompleted = true;
-          this.submitted = true;
-          this.loading = false;
-        });
-        return;
+        // Apenas APROVAÇÃO bloqueia nova tentativa
+        if (snap.status_aprovacao === true) {
+          // Usa getAssessmentById para buscar só esta avaliação
+          this.assessmentService.getAssessmentById(assessmentId).subscribe(assessment => {
+            this.assessment     = assessment;
+            const notaTotal     = assessment?.nota_total || 10;
+            this.relatedCourseId = assessment?.id_curso || null;
+            this.scoreObtained  = snap.nota_obtida || 0;
+            this.passingScore   = assessment?.nota_corte || (notaTotal * 0.6);
+            this.scorePercent   = notaTotal > 0 ? (this.scoreObtained / notaTotal) * 100 : 0;
+            this.passed         = true;
+            this.alreadyCompleted = true;
+            this.submitted      = true;
+            this.loading        = false;
+          });
+          return;
+        }
+        // Reprovado: cai no fluxo normal e permite nova tentativa
       }
     }
 
-    // Load assessment metadata
-    this.assessmentService.getAllAssessments().subscribe(assessments => {
-      this.assessment = assessments.find((a: any) => a.id === assessmentId) || null;
-      if (!this.assessment) {
+    // Carrega metadados e questões EM PARALELO em vez de sequencial
+    forkJoin({
+      assessment: this.assessmentService.getAssessmentById(assessmentId),
+      questions:  this.assessmentService.getQuestionsForAssessment(assessmentId)
+    }).subscribe(({ assessment, questions }) => {
+      if (!assessment) {
         this.toastService.error('Avaliação não encontrada.');
         this.loading = false;
         return;
       }
-      if (this.assessment.duracao) {
-        this.timeLeft = this.assessment.duracao * 60;
-      }
-    });
+      this.assessment      = assessment;
+      this.relatedCourseId = assessment.id_curso || null;
+      if (assessment.duracao) this.timeLeft = assessment.duracao * 60;
 
-    // Load questions linked to this assessment
-    this.assessmentService.getAssessmentQuestions(assessmentId).subscribe(linkedData => {
-      const questionIds = linkedData.map((lq: any) => lq.id_questao);
-
-      if (questionIds.length > 0) {
-        this.assessmentService.getQuestionsWithAlternatives(questionIds).subscribe(data => {
-          this.questions = data;
-          this.loading = false;
-        });
-      } else {
-        this.questions = [];
-        this.loading = false;
-      }
+      this.questions = questions;
+      this.loading   = false;
     });
   }
 
   start() {
-    this.isStarted = true;
+    this.isStarted   = true;
     this.currentIndex = 0;
-    this.answers = {};
+    this.answers      = {};
 
-    // Start countdown if assessment has timer
     if (this.assessment?.cronometro && this.timeLeft > 0) {
       this.timer = setInterval(() => {
-        if (this.timeLeft > 0) {
-          this.timeLeft--;
-        } else {
-          this.submit();
-        }
+        if (this.timeLeft > 0) { this.timeLeft--; } else { this.submit(); }
       }, 1000);
     }
   }
@@ -389,86 +490,159 @@ export class AssessmentTakeComponent implements OnInit, OnDestroy {
     this.answers[questionId] = alternativeId;
   }
 
-  prevQuestion() {
-    if (this.currentIndex > 0) this.currentIndex--;
+  prevQuestion() { if (this.currentIndex > 0) this.currentIndex--; }
+  nextQuestion() { if (this.currentIndex < this.questions.length - 1) this.currentIndex++; }
+  goToQuestion(i: number) { this.currentIndex = i; }
+
+  /** Reseta para nova tentativa sem recarregar a página */
+  resetForRetry() {
+    this.submitted        = false;
+    this.isStarted        = false;
+    this.alreadyCompleted = false;
+    this.hasReviewed      = false;   // exige nova revisão a cada tentativa
+    this.answers          = {};
+    this.currentIndex     = 0;
+    this.moduleScores     = [];
+    this.firstFailedContentId = null;
+    this.scoreObtained    = 0;
+    this.correctCount     = 0;
+    this.scorePercent     = 0;
+    this.passed           = false;
+    if (this.timer) clearInterval(this.timer);
+    if (this.assessment?.duracao) this.timeLeft = this.assessment.duracao * 60;
   }
 
-  nextQuestion() {
-    if (this.currentIndex < this.questions.length - 1) this.currentIndex++;
+  /** Confirmação manual (sem curso vinculado) */
+  markReviewed() {
+    this.hasReviewed = true;
   }
 
-  goToQuestion(index: number) {
-    this.currentIndex = index;
+  /**
+   * Redireciona para o course-player, gravando uma flag no localStorage.
+   * Quando o aluno voltar, Router.events detecta a flag e libera o botão.
+   */
+  goToCourseReview() {
+    // Destino: curso do conteúdo reprovado > curso vinculado ao assessment
+    const courseId = this.firstFailedCourseId || this.relatedCourseId;
+    if (!courseId) return;
+    // Grava flag ANTES de navegar — ao retornar, o subscription detecta
+    localStorage.setItem(this.reviewedKey, 'true');
+    const extras = this.firstFailedContentId
+      ? { queryParams: { contentId: this.firstFailedContentId } }
+      : {};
+    this.router.navigate(['/student/course-player', courseId], extras);
   }
 
   async submit() {
     if (this.isSubmitting) return;
 
     const unanswered = this.questions.length - this.answeredCount;
-    if (unanswered > 0) {
-      if (!confirm(`Você ainda tem ${unanswered} questão(ões) sem resposta. Deseja enviar mesmo assim?`)) {
-        return;
-      }
-    }
+    if (unanswered > 0 && !confirm(`Você tem ${unanswered} questão(ões) sem resposta. Deseja enviar mesmo assim?`)) return;
 
     this.isSubmitting = true;
     if (this.timer) clearInterval(this.timer);
 
     try {
-      const profile = this.authService.getLoggedProfile();
+      const profile   = this.authService.getLoggedProfile();
       const studentId = profile?.id || 'unknown';
-      const assessmentId = this.assessment?.id;
 
-      const snapshotId = await this.assessmentService.saveStudentAssessment(assessmentId, studentId, this.answers);
+      // 1. Salva o snapshot
+      const snapshotId = await this.assessmentService.saveStudentAssessment(
+        this.assessment.id, studentId, this.answers
+      );
 
-      // Calculate score
+      // 2. Calcula nota geral e por conteúdo
       this.correctCount = 0;
+      const notaTotal   = this.assessment?.nota_total || 10;
+      const regras: Record<string, number> = this.assessment?.regras_nota_minima_conteudo || {};
+
+      // Faz um JOIN das questões com o dado do conteúdo
+      const contentMap: Record<string, { nome: string; acertos: number; total: number }> = {};
+
       for (const q of this.questions) {
-        const selectedAltId = this.answers[q.id];
-        if (selectedAltId && q.alternatives) {
+        const contentId: string | null   = q.id_conteudo || null;
+        const contentName: string       = (q as any).contents?.titulo_tema || q.id_conteudo || 'Módulo';
+        const selectedAltId: string | undefined = this.answers[q.id];
+
+        if (contentId) {
+          if (!contentMap[contentId]) contentMap[contentId] = { nome: contentName, acertos: 0, total: 0 };
+          contentMap[contentId].total++;
+        }
+
+        if (selectedAltId && q.alternatives?.length) {
           const correctAlt = q.alternatives.find((a: any) => a.is_correta);
           if (correctAlt && correctAlt.id === selectedAltId) {
             this.correctCount++;
+            if (contentId) contentMap[contentId].acertos++;
           }
         }
       }
 
-      const totalQuestions = this.questions.length;
-      this.scorePercent = totalQuestions > 0 ? (this.correctCount / totalQuestions) * 100 : 0;
-      const notaTotal = this.assessment?.nota_total || 10;
+      const totalQ      = this.questions.length;
+      this.scoreObtained = totalQ > 0 ? (this.correctCount / totalQ) * notaTotal : 0;
+      this.passingScore  = this.assessment?.nota_corte || (notaTotal * 0.6);
+      this.scorePercent  = notaTotal > 0 ? (this.scoreObtained / notaTotal) * 100 : 0;
 
-      let rawScore = totalQuestions > 0 ? (this.correctCount / totalQuestions) * notaTotal : 0;
-      // Previne "numeric field overflow" do banco de dados (NUMERIC 4,2 suporta max 99.99)
-      if (rawScore >= 100) rawScore = 99.99;
-      this.scoreObtained = rawScore;
+      // 3. Verifica aprovação geral
+      let passedAll = this.scoreObtained >= this.passingScore;
 
-      this.passingScore = this.assessment?.nota_corte || (notaTotal * 0.6);
-      this.passed = this.scoreObtained >= this.passingScore;
-
-      // Update the snapshot with the calculated score
-      const { error: updateError } = await this.assessmentService.supabase
-        .from('assessment_snapshots')
-        .update({ nota_obtida: this.scoreObtained, status_aprovacao: this.passed })
-        .eq('id', snapshotId);
-
-      if (updateError) {
-        console.error('UpdateError: ', updateError);
-        throw new Error(updateError.message || 'Erro ao salvar a nota final');
+      // 4. Monta moduleScores e verifica aprovação por conteúdo
+      this.moduleScores = [];
+      for (const [contentId, data] of Object.entries(contentMap)) {
+        // Converte acertos para escala proporcional da nota total
+        const obtidaEscala   = data.total > 0 ? (data.acertos / data.total) * notaTotal : 0;
+        const requiredEscala = regras[contentId] || 0;
+        const modPassed      = requiredEscala === 0 || obtidaEscala >= requiredEscala;
+        if (!modPassed) passedAll = false;
+        this.moduleScores.push({
+          nome:     data.nome,
+          obtained: obtidaEscala,
+          required: requiredEscala,
+          maxScore: notaTotal,
+          passed:   modPassed
+        });
       }
 
-      // Check and issue certificate if passed and linked to a course
+      this.passed = passedAll;
+
+      // 5. Identifica primeiro módulo reprovado para deep-link de revisão
+      this.firstFailedContentId = null;
+      this.firstFailedCourseId  = null;
+      for (const q of this.questions) {
+        const cid = q.id_conteudo || null;
+        if (!cid) continue;
+        const obtained = contentMap[cid]?.total > 0
+          ? (contentMap[cid].acertos / contentMap[cid].total) * notaTotal : 0;
+        const required = regras[cid] || 0;
+        const modPassed = required === 0 || obtained >= required;
+        if (!modPassed && !this.firstFailedContentId) {
+          this.firstFailedContentId = cid;
+          this.firstFailedCourseId  = q.contents?.id_curso || null;
+        }
+      }
+
+      // Se o assessment não tem id_curso direto, usa o curso do conteúdo reprovado
+      if (!this.relatedCourseId) {
+        this.relatedCourseId = this.firstFailedCourseId
+          || this.questions.find((q: any) => q.contents?.id_curso)?.contents?.id_curso
+          || null;
+      }
+
+      // 6. Atualiza snapshot com status final
+      await this.assessmentService.updateSnapshotResult(snapshotId, this.scoreObtained, this.passed);
+
+      // 7. Verifica certificado se aprovado
       if (this.passed && this.assessment?.id_curso) {
         await this.progressService.checkAndIssueCertificate(studentId, this.assessment.id_curso);
       }
 
       this.submitted = true;
-      this.toastService.success(this.passed ? 'Aprovado! Parabéns!' : 'Avaliação enviada. Você pode tentar novamente.');
+      this.toastService.success(this.passed ? 'Aprovado! Parabéns!' : 'Avaliação enviada. Revise o conteúdo e tente novamente.');
     } catch (e: any) {
       console.error('Erro ao submeter avaliação:', e);
-      this.toastService.error('Erro ao enviar avaliação: ' + (e.message || 'Erro inesperado'));
+      this.toastService.error('Erro ao enviar avaliação: ' + (e?.message || 'Erro inesperado'));
     } finally {
       this.isSubmitting = false;
     }
   }
-
 }

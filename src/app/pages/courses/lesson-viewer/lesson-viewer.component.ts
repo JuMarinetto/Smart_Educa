@@ -29,18 +29,8 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
         </div>
       </div>
 
-      <div class="lesson-actions" [class.finish-actions]="isLastItem">
-        <div class="finish-course-area" *ngIf="isLastItem">
-          <div class="finish-message">
-            <lucide-icon name="Award" size="24"></lucide-icon>
-            <span>Você chegou à última aula do curso!</span>
-          </div>
-          <button class="btn-finish" (click)="completeAndNext()">
-            <lucide-icon name="Trophy" size="20"></lucide-icon>
-            {{ isCompleted ? 'Finalizar Curso' : 'Concluir e Finalizar Curso' }}
-          </button>
-        </div>
-        <button class="btn-primary" *ngIf="!isLastItem" (click)="completeAndNext()">
+      <div class="lesson-actions">
+        <button class="btn-primary" (click)="completeAndNext()" [disabled]="saving">
           <lucide-icon [name]="isCompleted ? 'ChevronRight' : 'CheckCircle'" size="18"></lucide-icon>
           {{ getButtonLabel() }}
         </button>
@@ -54,16 +44,12 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
     .progress-badge.completed { background: rgba(16, 185, 129, 0.1); color: var(--success); }
     .lesson-body { line-height: 1.8; color: var(--text-main); font-size: 1.1rem; margin-bottom: 2rem; }
     .mock-video-player { margin-top: 2rem; height: 300px; background: #000; border-radius: 12px; display: flex; flex-direction: column; align-items: center; justify-content: center; color: white; position: relative; margin-bottom: 2rem; }
-    
-    .lesson-actions { display: flex; justify-content: flex-end; padding: 2rem 0; border-top: 1px solid var(--border); margin-top: 3rem; }
-    .lesson-actions.finish-actions { justify-content: center; }
-    .btn-primary { display: flex; align-items: center; gap: 8px; background: var(--primary); color: white; padding: 0.8rem 1.75rem; border-radius: 8px; font-weight: 600; border: none; cursor: pointer; transition: background 0.2s, transform 0.1s; }
-    .btn-primary:hover { background: var(--primary-hover); transform: translateY(-1px); }
 
-    .finish-course-area { display: flex; flex-direction: column; align-items: center; gap: 1rem; width: 100%; padding: 1rem 0; }
-    .finish-message { display: flex; align-items: center; gap: 8px; color: #f59e0b; font-size: 0.95rem; font-weight: 500; }
-    .btn-finish { display: flex; align-items: center; gap: 10px; background: linear-gradient(135deg, #10b981, #059669); color: white; padding: 1rem 2.5rem; border-radius: 12px; font-weight: 700; font-size: 1.1rem; border: none; cursor: pointer; transition: all 0.2s; box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3); }
-    .btn-finish:hover { background: linear-gradient(135deg, #059669, #047857); transform: translateY(-2px); box-shadow: 0 6px 20px rgba(16, 185, 129, 0.4); }
+    .lesson-actions { display: flex; justify-content: flex-end; padding: 2rem 0; border-top: 1px solid var(--border); margin-top: 3rem; }
+    .btn-primary { display: flex; align-items: center; gap: 8px; background: var(--primary); color: white; padding: 0.8rem 1.75rem; border-radius: 8px; font-weight: 600; border: none; cursor: pointer; transition: background 0.2s, transform 0.1s; }
+    .btn-primary:hover:not(:disabled) { background: var(--primary-hover); transform: translateY(-1px); }
+    .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
+
   `]
 })
 export class LessonViewerComponent implements OnInit, OnChanges {
@@ -71,7 +57,7 @@ export class LessonViewerComponent implements OnInit, OnChanges {
   @Input() studentId!: string;
   @Input() isCompleted: boolean = false;
   @Input() isLastItem: boolean = false;
-  @Output() progressUpdated = new EventEmitter<void>();
+  @Output() progressUpdated = new EventEmitter<string>();
   @Output() nextItem = new EventEmitter<void>();
   @ViewChild('scrollContainer') scrollContainer!: ElementRef;
 
@@ -81,13 +67,15 @@ export class LessonViewerComponent implements OnInit, OnChanges {
 
   safeContent: SafeHtml = '';
   hasVideo = false;
+  saving = false;
 
   ngOnChanges(changes: SimpleChanges) {
-    if (changes['content'] && !changes['content'].isFirstChange()) {
-      // Reset scroll position
-      if (this.scrollContainer && this.scrollContainer.nativeElement) {
+    // Re-initialise content whenever the @Input changes (including first change)
+    if (changes['content']) {
+      if (this.scrollContainer?.nativeElement) {
         this.scrollContainer.nativeElement.scrollTop = 0;
       }
+      this.saving = false;
       this.initContent();
     }
   }
@@ -102,8 +90,10 @@ export class LessonViewerComponent implements OnInit, OnChanges {
   }
 
   async completeAndNext() {
+    if (this.saving) return;
+
     if (!this.isCompleted && this.studentId && this.content) {
-      this.isCompleted = true;
+      this.saving = true;
       try {
         const result = await this.progressService.updateProgress({
           id_aluno: this.studentId,
@@ -114,21 +104,27 @@ export class LessonViewerComponent implements OnInit, OnChanges {
 
         if (result && result.error) {
           this.toastService.error('Erro ao salvar progresso: ' + result.error.message);
-        } else {
-          this.progressUpdated.emit();
+          this.saving = false;
+          return; // Don't advance on error
         }
+
+        this.isCompleted = true;
+        this.progressUpdated.emit(this.content.id);
       } catch (e: any) {
         this.toastService.error('Falha na comunicação de progresso.');
+        this.saving = false;
+        return; // Don't advance on error
       }
     }
-    
-    // Always navigate to next item regardless of whether it was already completed
+
+    this.saving = false;
+    // Always navigate to next item (or trigger completion)
     this.nextItem.emit();
   }
 
   getButtonLabel(): string {
     if (this.isLastItem) {
-      return this.isCompleted ? 'Finalizar Curso' : 'Concluir e Finalizar';
+      return this.isCompleted ? 'Concluir' : 'Concluir';
     }
     return this.isCompleted ? 'Próximo' : 'Concluir e Ir para o Próximo';
   }

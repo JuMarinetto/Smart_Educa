@@ -7,40 +7,58 @@ import { from, map } from 'rxjs';
   providedIn: 'root'
 })
 export class AssessmentService {
-  public supabase = inject(SupabaseService).client;
+  private supabase = inject(SupabaseService).client;
 
+  /**
+   * Inicia uma tentativa de avaliação para um aluno:
+   * busca questões + conta tentativas anteriores em paralelo,
+   * grava o snapshot imutável e retorna o registro criado.
+   */
   async startAssessment(assessmentId: string, studentId: string) {
-    // Busca as questões reais e alternativas para compor o JSON
-    const { data: questions } = await this.supabase
-      .from('questions')
-      .select('*, alternatives(*)')
-      .eq('id_avaliacao', assessmentId);
+    // Busca questões + contagem de tentativas em PARALELO
+    const [questionsResult, { count: attemptCount }] = await Promise.all([
+      // Query 1: busca questões + alternativas pelo assessment (JOIN)
+      this.supabase
+        .from('assessment_questions')
+        .select(`
+          questions:id_questao (
+            id, enunciado, id_conteudo,
+            alternatives (*)
+          )
+        `)
+        .eq('id_avaliacao', assessmentId),
 
-    // Cria o JSON imutável
-    const json_questoes = (questions || []).map(q => ({
+      // Query 2: conta tentativas anteriores
+      this.supabase
+        .from('assessment_snapshots')
+        .select('id', { count: 'exact', head: true })
+        .eq('id_aluno', studentId)
+        .eq('id_avaliacao_original', assessmentId)
+    ]);
+
+    // Desembala o resultado aninhado das questões
+    const questions = (questionsResult.data || [])
+      .map((row: any) => row.questions)
+      .filter(Boolean);
+
+    // Monta o JSON imutável (inclui id_conteudo para validação por conteúdo na RPC)
+    const jsonQuestoes = questions.map((q: any) => ({
       codigo: q.id,
       enunciado: q.enunciado,
-      area_conhecimento: q.id_area_conhecimento,
+      id_conteudo: q.id_conteudo ?? null,
       alternativas: q.alternatives,
-      pontuacao: 10 // Ponto fixo MVP
+      pontuacao: 10
     }));
 
-    // Conta as tentativas atuais para preencher numero_tentativa
-    const { count } = await this.supabase
-      .from('assessment_snapshots')
-      .select('id', { count: 'exact' })
-      .eq('id_aluno', studentId)
-      .eq('id_avaliacao_original', assessmentId);
-
-    // Insere UMA ÚNICA LINHA na tabela de snapshots, servindo como o histórico final oficial
+    // Insere snapshot com número da tentativa
     const { data: snapshot } = await this.supabase
       .from('assessment_snapshots')
       .insert({
         id_avaliacao_original: assessmentId,
         id_aluno: studentId,
         data_aplicacao: new Date().toISOString(),
-        numero_tentativa: (count || 0) + 1,
-        json_questoes: json_questoes
+        numero_tentativa: (attemptCount || 0) + 1,
+        json_questoes: jsonQuestoes
       })
       .select()
       .single();
@@ -48,9 +66,11 @@ export class AssessmentService {
     return snapshot;
   }
 
+  /**
+   * Envia as respostas do aluno para a RPC segura no Supabase.
+   * A validação, cronometragem e cálculo de nota são feitos pelo servidor.
+   */
   async submitAssessment(attemptId: string, answers: any[]) {
-    // Chama a RPC no Supabase que faz a validação dupla, 
-    // cronometragem segura pelo servidor e cálculo de nota imutável via snapshots.
     const { data: result, error } = await this.supabase.rpc('submit_assessment_secure', {
       p_attempt_id: attemptId,
       p_answers: answers
@@ -61,11 +81,10 @@ export class AssessmentService {
       throw error;
     }
 
-    // Após processar no DB, a linha em `student_assessments` já foi atualizada.
-    // Retornamos os dados calculados para o Front-End mostrar o feedback (aprovado/reprovado).
     return result;
   }
 
+  /** Retorna todas as avaliações com status PUBLICADA. */
   getAvailableAssessments() {
     return from(
       this.supabase
@@ -76,7 +95,7 @@ export class AssessmentService {
     ).pipe(map(res => (res.data as Assessment[]) || []));
   }
 
-  // --- ADMIN CRUD OPs ---
+  /** Retorna todas as avaliações (uso exclusivo do admin). */
   getAllAssessments() {
     return from(
       this.supabase
@@ -84,6 +103,41 @@ export class AssessmentService {
         .select('*')
         .order('created_at', { ascending: false })
     ).pipe(map(res => (res.data as Assessment[]) || []));
+  }
+
+  /** Busca uma avaliação pelo ID sem carregar a tabela inteira. */
+  getAssessmentById(id: string) {
+    return from(
+      this.supabase
+        .from('assessments')
+        .select('*')
+        .eq('id', id)
+        .single()
+    ).pipe(map(res => res.data as Assessment | null));
+  }
+
+  /**
+   * Carrega questões + alternativas + conteúdo de uma avaliação em uma única query.
+   */
+  getQuestionsForAssessment(assessmentId: string) {
+    return from(
+      this.supabase
+        .from('assessment_questions')
+        .select(`
+          id_questao,
+          questions:id_questao(
+            id, titulo, enunciado, codigo, id_conteudo,
+            alternatives(*),
+            contents:id_conteudo(id, titulo_tema, id_curso)
+          )
+        `)
+        .eq('id_avaliacao', assessmentId)
+    ).pipe(
+      map(res => {
+        const rows = (res.data as any[]) || [];
+        return rows.map(row => row.questions).filter(Boolean);
+      })
+    );
   }
 
   async createAssessment(assessment: Partial<Assessment>) {
@@ -98,21 +152,37 @@ export class AssessmentService {
     return await this.supabase.from('assessments').delete().eq('id', id);
   }
 
-  // --- ASSESSMENT ↔ QUESTIONS JUNCTION ---
+  /** Retorna questões vinculadas a uma avaliação com dados do conteúdo associado. */
   getAssessmentQuestions(assessmentId: string) {
     return from(
       this.supabase
         .from('assessment_questions')
-        .select('id, id_questao, questions:id_questao(id, titulo, enunciado, codigo)')
+        .select(`
+          id, id_questao,
+          questions:id_questao(
+            id, titulo, enunciado, codigo, id_conteudo,
+            contents:id_conteudo(id, titulo_tema)
+          )
+        `)
         .eq('id_avaliacao', assessmentId)
     ).pipe(map(res => (res.data as any[]) || []));
   }
 
+  /** Salva apenas as regras de nota mínima por conteúdo sem alterar outros campos. */
+  async updateAssessmentRules(id: string, regras_nota_minima_conteudo: Record<string, number>) {
+    return await this.supabase
+      .from('assessments')
+      .update({ regras_nota_minima_conteudo })
+      .eq('id', id);
+  }
+
+  /** Vincula uma lista de questões a uma avaliação. */
   async linkQuestionsToAssessment(assessmentId: string, questionIds: string[]) {
     const rows = questionIds.map(qId => ({ id_avaliacao: assessmentId, id_questao: qId }));
     return await this.supabase.from('assessment_questions').insert(rows);
   }
 
+  /** Remove o vínculo de uma questão específica com uma avaliação. */
   async unlinkQuestionFromAssessment(assessmentId: string, questionId: string) {
     return await this.supabase
       .from('assessment_questions')
@@ -120,33 +190,23 @@ export class AssessmentService {
       .eq('id_avaliacao', assessmentId)
       .eq('id_questao', questionId);
   }
-  // -----------------------
 
-  // --- STUDENT EXAM FLOW ---
-  getQuestionsWithAlternatives(questionIds: string[]) {
-    return from(
-      this.supabase
-        .from('questions')
-        .select('*, alternatives(*)')
-        .in('id', questionIds)
-    ).pipe(map(res => (res.data as any[]) || []));
-  }
-
+  /**
+   * Salva as respostas do aluno diretamente em um snapshot (fluxo legado).
+   * Mantido pois ainda é utilizado pelo AssessmentTakeComponent.
+   */
   async saveStudentAssessment(assessmentId: string, studentId: string, answers: Record<string, string>) {
-    // Count existing attempts
     const { count } = await this.supabase
       .from('assessment_snapshots')
       .select('id', { count: 'exact' })
       .eq('id_aluno', studentId)
       .eq('id_avaliacao_original', assessmentId);
 
-    // Convert answers to array format for storage
     const respostas = Object.entries(answers).map(([questionId, alternativeId]) => ({
       id_questao: questionId,
       id_alternativa_escolhida: alternativeId
     }));
 
-    // Insert into assessment_snapshots
     const { data, error } = await this.supabase
       .from('assessment_snapshots')
       .insert({
@@ -161,12 +221,10 @@ export class AssessmentService {
       .single();
 
     if (error) throw error;
-
     return data.id;
   }
-  // -----------------------
 
-  // --- COMPLETED EXAMS ---
+  /** Retorna todas as avaliações concluídas por um aluno, ordenadas da mais recente. */
   getStudentCompletedAssessments(studentId: string) {
     return from(
       this.supabase
@@ -179,10 +237,12 @@ export class AssessmentService {
         .order('data_aplicacao', { ascending: false })
     ).pipe(map(res => (res.data as any[]) || []));
   }
-  // -----------------------
 
+  /**
+   * Verifica a elegibilidade do aluno para refazer a avaliação,
+   * com base no status da tentativa mais recente.
+   */
   getEligibility(studentId: string, assessmentId: string) {
-    // Atualizado para ler o status da tentativa mais recente na nova tabela de snapshots
     return from(
       this.supabase
         .from('assessment_snapshots')
@@ -195,17 +255,60 @@ export class AssessmentService {
       const snap = res.data?.[0] as AssessmentSnapshot;
       if (!snap) return null;
 
-      // Mapeia o snapshot para a interface esperada pelo UI
       return {
         id: snap.id,
         id_avaliacao: snap.id_avaliacao_original,
         id_aluno: snap.id_aluno,
         nota_final: snap.nota_obtida || 0,
-        aprovado: snap.status_aprovacao ?? true, // se não finalizou ainda, permite
+        aprovado: snap.status_aprovacao ?? true,
         data_inicio: snap.data_aplicacao,
         data_fim: snap.status_aprovacao !== undefined ? new Date().toISOString() : undefined,
         reprovas_por_area: snap.areas_reprovadas
       } as StudentAssessment;
     }));
+  }
+
+  /**
+   * Remove todos os snapshots (tentativas) vinculados a uma avaliação.
+   */
+  async deleteSnapshotsByAssessmentId(assessmentId: string) {
+    return await this.supabase
+      .from('assessment_snapshots')
+      .delete()
+      .eq('id_avaliacao_original', assessmentId);
+  }
+
+  /**
+   * Remove todos os vínculos de questões de uma avaliação.
+   */
+  async deleteQuestionsLinksByAssessmentId(assessmentId: string) {
+    return await this.supabase
+      .from('assessment_questions')
+      .delete()
+      .eq('id_avaliacao', assessmentId);
+  }
+
+  /**
+   * Busca a última tentativa finalizada de um aluno para uma avaliação específica.
+   */
+  async getLastSnapshot(studentId: string, assessmentId: string) {
+    return await this.supabase
+      .from('assessment_snapshots')
+      .select('*')
+      .eq('id_aluno', studentId)
+      .eq('id_avaliacao_original', assessmentId)
+      .not('status_aprovacao', 'is', null)
+      .order('data_aplicacao', { ascending: false })
+      .limit(1);
+  }
+
+  /**
+   * Atualiza o resultado final de um snapshot.
+   */
+  async updateSnapshotResult(snapshotId: string, score: number, passed: boolean) {
+    return await this.supabase
+      .from('assessment_snapshots')
+      .update({ nota_obtida: score, status_aprovacao: passed })
+      .eq('id', snapshotId);
   }
 }

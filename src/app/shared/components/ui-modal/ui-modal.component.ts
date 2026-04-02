@@ -7,7 +7,7 @@ import { LucideAngularModule, X } from 'lucide-angular';
     standalone: true,
     imports: [CommonModule, LucideAngularModule],
     template: `
-    <div class="modal-overlay" *ngIf="isOpen" (click)="closeOnOverlay($event)">
+    <div class="modal-overlay" *ngIf="isOpen">
       <div class="modal-content" [style.width]="width">
         <div class="modal-header">
           <h3>{{ title }}</h3>
@@ -37,12 +37,15 @@ import { LucideAngularModule, X } from 'lucide-angular';
     }
     .modal-content {
       background: var(--bg-card);
-      border-radius: 12px;
+      border-radius: 16px;
       padding: 2rem;
-      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+      box-shadow: 0 24px 60px rgba(0,0,0,0.4);
       max-height: 90vh;
       overflow-y: auto;
+      overflow-x: hidden;
       border: 1px solid var(--border);
+      max-width: 95vw;
+      box-sizing: border-box;
     }
     .modal-header {
       display: flex;
@@ -77,11 +80,5 @@ export class UiModalComponent {
     close() {
         this.isOpen = false;
         this.isOpenChange.emit(false);
-    }
-
-    closeOnOverlay(event: MouseEvent) {
-        if ((event.target as HTMLElement).classList.contains('modal-overlay')) {
-            this.close();
-        }
     }
 }
