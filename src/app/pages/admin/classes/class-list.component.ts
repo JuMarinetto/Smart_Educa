@@ -36,18 +36,7 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
         (delete)="confirmDelete($event)">
       </app-data-table>
 
-      <app-ui-modal title="Confirmar Exclusão" [(isOpen)]="isDeleteModalOpen" width="450px">
-        <div class="modal-body" *ngIf="classToDelete">
-          <p>Tem certeza que deseja excluir a turma <strong>{{ classToDelete.nome_turma }}</strong>?</p>
-          <p style="font-size: 0.85rem; color: var(--danger); margin-top: 10px;">Esta ação não poderá ser desfeita e removerá todos os vínculos com alunos e cursos.</p>
-          <div class="form-actions" style="margin-top: 2rem;">
-            <button type="button" class="btn-secondary" (click)="cancelDelete()">Cancelar</button>
-            <button type="button" class="btn-danger" (click)="executeDelete()">Sim, Excluir Turma</button>
-          </div>
-        </div>
-      </app-ui-modal>
-
-      <app-ui-modal [title]="editingClass ? 'Editar Turma' : 'Nova Turma'" [(isOpen)]="isModalOpen" width="620px">
+      <app-ui-modal [title]="editingClass ? 'Editar Turma' : 'Nova Turma'" [(isOpen)]="isModalOpen">
         <form (submit)="saveClass($event)" class="admin-form" id="classForm">
           <div class="form-alert form-alert-error" *ngIf="showError">
             <lucide-icon name="AlertCircle" size="18"></lucide-icon>
@@ -170,23 +159,13 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
 
     .students-list { display: flex; flex-direction: column; gap: 0.5rem; max-height: 260px; overflow-y: auto; padding-right: 0.25rem; }
     .student-item { display: flex; justify-content: space-between; align-items: center; padding: 0.75rem 1rem; background: var(--bg-main); border: 1px solid var(--border); border-radius: 8px; }
-    .student-info { display: flex; flex-direction: column; min-width: 0; }
-    .student-name { font-weight: 600; font-size: 0.9rem; color: var(--text-main); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .student-email { font-size: 0.78rem; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .btn-remove { background: none; border: none; color: #ef4444; cursor: pointer; padding: 6px; border-radius: 6px; transition: background 0.2s; flex-shrink: 0; }
-    .btn-remove:hover { background: rgba(239,68,68,0.12); }
-
-    .empty-state { text-align: center; padding: 1.5rem; color: var(--text-muted); font-size: 0.875rem; background: var(--bg-main); border-radius: 8px; border: 1px dashed var(--border); }
-
-    .btn-danger { background: var(--danger); color: white; padding: 0.8rem 1.5rem; border-radius: 8px; border: none; font-weight: 600; cursor: pointer; transition: opacity 0.2s; }
-    .btn-danger:hover { opacity: 0.9; }
-
-    /* Error states */
-    .form-alert { display: flex; align-items: center; gap: 8px; padding: 0.75rem 1rem; border-radius: 8px; font-size: 0.875rem; font-weight: 500; }
-    .form-alert-error { background: rgba(239,68,68,0.1); color: #ef4444; border: 1px solid rgba(239,68,68,0.25); }
-    .invalid-input { border-color: #ef4444 !important; }
-    .error-hint { font-size: 0.78rem; color: #ef4444; }
-    .required-star { color: #ef4444; }
+    .student-info { display: flex; flex-direction: column; }
+    .student-name { font-weight: 600; font-size: 0.9rem; color: var(--text-main); }
+    .student-email { font-size: 0.8rem; color: var(--text-muted); }
+    .btn-remove { background: none; border: none; color: #ef4444; cursor: pointer; padding: 4px; border-radius: 4px; transition: background 0.2s; }
+    .btn-remove:hover { background: rgba(239, 68, 68, 0.1); }
+    
+    .empty-state { text-align: center; padding: 2rem; color: var(--text-muted); font-size: 0.9rem; background: var(--bg-main); border-radius: 8px; border: 1px dashed var(--border); }
   `]
 })
 export class ClassListComponent implements OnInit {

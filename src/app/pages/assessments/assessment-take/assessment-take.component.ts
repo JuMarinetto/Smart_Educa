@@ -360,29 +360,21 @@ export class AssessmentTakeComponent implements OnInit, OnDestroy {
   timeLeft = 0;
   private timer: any;
 
-  // Result state
+  // --- Result ---
   scoreObtained = 0;
   correctCount = 0;
   scorePercent = 0;
   passingScore = 0;
   passed = false;
-  hasReviewed = false;   // libera o botão Tentar Novamente
-  relatedCourseId: string | null = null;
 
-  // Chave usada no localStorage para sinalizar retorno da revisão
-  private reviewedKey = '';
-  private routerSub?: Subscription;
+  get currentQuestion() {
+    return this.questions[this.currentIndex] || null;
+  }
 
-  // Desempenho por módulo/conteúdo
-  moduleScores: { nome: string; obtained: number; required: number; maxScore: number; passed: boolean }[] = [];
-  firstFailedContentId: string | null = null;  // para deep-link na revisão
-  firstFailedCourseId: string | null = null;  // curso do conteudo reprovado
+  get progressPercent() {
+    return this.questions.length > 0 ? ((this.currentIndex + 1) / this.questions.length) * 100 : 0;
+  }
 
-  private assessmentId: string | null = null;
-
-  get currentQuestion() { return this.questions[this.currentIndex] || null; }
-  get progressPercent() { return this.questions.length > 0 ? ((this.currentIndex + 1) / this.questions.length) * 100 : 0; }
-  get answeredCount() { return Object.keys(this.answers).length; }
   get formattedTime() {
     const m = Math.floor(this.timeLeft / 60);
     const s = this.timeLeft % 60;
@@ -433,44 +425,50 @@ export class AssessmentTakeComponent implements OnInit, OnDestroy {
 
       if (snaps && snaps.length > 0) {
         const snap = snaps[0];
+        this.assessmentService.getAllAssessments().subscribe(assessments => {
+          this.assessment = assessments.find((a: any) => a.id === assessmentId) || null;
+          const notaTotal = this.assessment?.nota_total || 10;
 
-        // Apenas APROVAÇÃO bloqueia nova tentativa
-        if (snap.status_aprovacao === true) {
-          // Usa getAssessmentById para buscar só esta avaliação
-          this.assessmentService.getAssessmentById(assessmentId).subscribe(assessment => {
-            this.assessment = assessment;
-            const notaTotal = assessment?.nota_total || 10;
-            this.relatedCourseId = assessment?.id_curso || null;
-            this.scoreObtained = snap.nota_obtida || 0;
-            this.passingScore = assessment?.nota_corte || (notaTotal * 0.6);
-            this.scorePercent = notaTotal > 0 ? (this.scoreObtained / notaTotal) * 100 : 0;
-            this.passed = true;
-            this.alreadyCompleted = true;
-            this.submitted = true;
-            this.loading = false;
-          });
-          return;
-        }
-        // Reprovado: cai no fluxo normal e permite nova tentativa
+          this.scoreObtained = snap.nota_obtida || 0;
+          this.passed = snap.status_aprovacao;
+          this.passingScore = this.assessment?.nota_corte || (notaTotal * 0.6);
+          this.scorePercent = notaTotal > 0 ? (this.scoreObtained / notaTotal) * 100 : 0;
+          this.questions = [];
+
+          this.alreadyCompleted = true;
+          this.submitted = true;
+          this.loading = false;
+        });
+        return;
       }
     }
 
-    // Carrega metadados e questões EM PARALELO em vez de sequencial
-    forkJoin({
-      assessment: this.assessmentService.getAssessmentById(assessmentId),
-      questions: this.assessmentService.getQuestionsForAssessment(assessmentId)
-    }).subscribe(({ assessment, questions }) => {
-      if (!assessment) {
+    // Load assessment metadata
+    this.assessmentService.getAllAssessments().subscribe(assessments => {
+      this.assessment = assessments.find((a: any) => a.id === assessmentId) || null;
+      if (!this.assessment) {
         this.toastService.error('Avaliação não encontrada.');
         this.loading = false;
         return;
       }
-      this.assessment = assessment;
-      this.relatedCourseId = assessment.id_curso || null;
-      if (assessment.duracao) this.timeLeft = assessment.duracao * 60;
+      if (this.assessment.duracao) {
+        this.timeLeft = this.assessment.duracao * 60;
+      }
+    });
 
-      this.questions = questions;
-      this.loading = false;
+    // Load questions linked to this assessment
+    this.assessmentService.getAssessmentQuestions(assessmentId).subscribe(linkedData => {
+      const questionIds = linkedData.map((lq: any) => lq.id_questao);
+
+      if (questionIds.length > 0) {
+        this.assessmentService.getQuestionsWithAlternatives(questionIds).subscribe(data => {
+          this.questions = data;
+          this.loading = false;
+        });
+      } else {
+        this.questions = [];
+        this.loading = false;
+      }
     });
   }
 
@@ -490,47 +488,16 @@ export class AssessmentTakeComponent implements OnInit, OnDestroy {
     this.answers[questionId] = alternativeId;
   }
 
-  prevQuestion() { if (this.currentIndex > 0) this.currentIndex--; }
-  nextQuestion() { if (this.currentIndex < this.questions.length - 1) this.currentIndex++; }
-  goToQuestion(i: number) { this.currentIndex = i; }
-
-  /** Reseta para nova tentativa sem recarregar a página */
-  resetForRetry() {
-    this.submitted = false;
-    this.isStarted = false;
-    this.alreadyCompleted = false;
-    this.hasReviewed = false;   // exige nova revisão a cada tentativa
-    this.answers = {};
-    this.currentIndex = 0;
-    this.moduleScores = [];
-    this.firstFailedContentId = null;
-    this.scoreObtained = 0;
-    this.correctCount = 0;
-    this.scorePercent = 0;
-    this.passed = false;
-    if (this.timer) clearInterval(this.timer);
-    if (this.assessment?.duracao) this.timeLeft = this.assessment.duracao * 60;
+  prevQuestion() {
+    if (this.currentIndex > 0) this.currentIndex--;
   }
 
-  /** Confirmação manual (sem curso vinculado) */
-  markReviewed() {
-    this.hasReviewed = true;
+  nextQuestion() {
+    if (this.currentIndex < this.questions.length - 1) this.currentIndex++;
   }
 
-  /**
-   * Redireciona para o course-player, gravando uma flag no localStorage.
-   * Quando o aluno voltar, Router.events detecta a flag e libera o botão.
-   */
-  goToCourseReview() {
-    // Destino: curso do conteúdo reprovado > curso vinculado ao assessment
-    const courseId = this.firstFailedCourseId || this.relatedCourseId;
-    if (!courseId) return;
-    // Grava flag ANTES de navegar — ao retornar, o subscription detecta
-    localStorage.setItem(this.reviewedKey, 'true');
-    const extras = this.firstFailedContentId
-      ? { queryParams: { contentId: this.firstFailedContentId } }
-      : {};
-    this.router.navigate(['/student/course-player', courseId], extras);
+  goToQuestion(index: number) {
+    this.currentIndex = index;
   }
 
   async submit() {
@@ -553,23 +520,9 @@ export class AssessmentTakeComponent implements OnInit, OnDestroy {
 
       // 2. Calcula nota geral e por conteúdo
       this.correctCount = 0;
-      const notaTotal = this.assessment?.nota_total || 10;
-      const regras: Record<string, number> = this.assessment?.regras_nota_minima_conteudo || {};
-
-      // Faz um JOIN das questões com o dado do conteúdo
-      const contentMap: Record<string, { nome: string; acertos: number; total: number }> = {};
-
       for (const q of this.questions) {
-        const contentId: string | null = q.id_conteudo || null;
-        const contentName: string = (q as any).contents?.titulo_tema || q.id_conteudo || 'Módulo';
-        const selectedAltId: string | undefined = this.answers[q.id];
-
-        if (contentId) {
-          if (!contentMap[contentId]) contentMap[contentId] = { nome: contentName, acertos: 0, total: 0 };
-          contentMap[contentId].total++;
-        }
-
-        if (selectedAltId && q.alternatives?.length) {
+        const selectedAltId = this.answers[q.id];
+        if (selectedAltId && q.alternatives) {
           const correctAlt = q.alternatives.find((a: any) => a.is_correta);
           if (correctAlt && correctAlt.id === selectedAltId) {
             this.correctCount++;
@@ -578,54 +531,27 @@ export class AssessmentTakeComponent implements OnInit, OnDestroy {
         }
       }
 
-      const totalQ = this.questions.length;
-      this.scoreObtained = totalQ > 0 ? (this.correctCount / totalQ) * notaTotal : 0;
+      const totalQuestions = this.questions.length;
+      this.scorePercent = totalQuestions > 0 ? (this.correctCount / totalQuestions) * 100 : 0;
+      const notaTotal = this.assessment?.nota_total || 10;
+
+      let rawScore = totalQuestions > 0 ? (this.correctCount / totalQuestions) * notaTotal : 0;
+      // Previne "numeric field overflow" do banco de dados (NUMERIC 4,2 suporta max 99.99)
+      if (rawScore >= 100) rawScore = 99.99;
+      this.scoreObtained = rawScore;
+
       this.passingScore = this.assessment?.nota_corte || (notaTotal * 0.6);
-      this.scorePercent = notaTotal > 0 ? (this.scoreObtained / notaTotal) * 100 : 0;
+      this.passed = this.scoreObtained >= this.passingScore;
 
-      // 3. Verifica aprovação geral
-      let passedAll = this.scoreObtained >= this.passingScore;
+      // Update the snapshot with the calculated score
+      const { error: updateError } = await this.assessmentService.supabase
+        .from('assessment_snapshots')
+        .update({ nota_obtida: this.scoreObtained, status_aprovacao: this.passed })
+        .eq('id', snapshotId);
 
-      // 4. Monta moduleScores e verifica aprovação por conteúdo
-      this.moduleScores = [];
-      for (const [contentId, data] of Object.entries(contentMap)) {
-        // Converte acertos para escala proporcional da nota total
-        const obtidaEscala = data.total > 0 ? (data.acertos / data.total) * notaTotal : 0;
-        const requiredEscala = regras[contentId] || 0;
-        const modPassed = requiredEscala === 0 || obtidaEscala >= requiredEscala;
-        if (!modPassed) passedAll = false;
-        this.moduleScores.push({
-          nome: data.nome,
-          obtained: obtidaEscala,
-          required: requiredEscala,
-          maxScore: notaTotal,
-          passed: modPassed
-        });
-      }
-
-      this.passed = passedAll;
-
-      // 5. Identifica primeiro módulo reprovado para deep-link de revisão
-      this.firstFailedContentId = null;
-      this.firstFailedCourseId = null;
-      for (const q of this.questions) {
-        const cid = q.id_conteudo || null;
-        if (!cid) continue;
-        const obtained = contentMap[cid]?.total > 0
-          ? (contentMap[cid].acertos / contentMap[cid].total) * notaTotal : 0;
-        const required = regras[cid] || 0;
-        const modPassed = required === 0 || obtained >= required;
-        if (!modPassed && !this.firstFailedContentId) {
-          this.firstFailedContentId = cid;
-          this.firstFailedCourseId = q.contents?.id_curso || null;
-        }
-      }
-
-      // Se o assessment não tem id_curso direto, usa o curso do conteúdo reprovado
-      if (!this.relatedCourseId) {
-        this.relatedCourseId = this.firstFailedCourseId
-          || this.questions.find((q: any) => q.contents?.id_curso)?.contents?.id_curso
-          || null;
+      if (updateError) {
+        console.error('UpdateError: ', updateError);
+        throw new Error(updateError.message || 'Erro ao salvar a nota final');
       }
 
       // 6. Atualiza snapshot com status final
