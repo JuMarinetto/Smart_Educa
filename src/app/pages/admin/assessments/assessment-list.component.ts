@@ -260,7 +260,13 @@ interface ContentRule {
     .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; }
     .btn-primary { background: var(--primary); color: white; padding: 0.8rem 1.5rem; border-radius: 8px; display: flex; align-items: center; gap: 8px; font-weight: 600; border: none; cursor: pointer; }
     .btn-secondary { background: var(--bg-main); border: 1px solid var(--border); color: var(--text-main); padding: 0.8rem 1.5rem; border-radius: 8px; cursor: pointer; }
+<<<<<<< HEAD
     
+=======
+    .btn-danger { background: var(--danger); color: white; padding: 0.8rem 1.5rem; border-radius: 8px; border: none; font-weight: 600; cursor: pointer; transition: opacity 0.2s; }
+    .btn-danger:hover { opacity: 0.9; }
+
+>>>>>>> c32597f (ajuste do delete)
     .admin-form { display: flex; flex-direction: column; gap: 1.25rem; }
     .form-group { display: flex; flex-direction: column; gap: 0.5rem; }
     .form-row { display: flex; gap: 1rem; }
@@ -521,6 +527,7 @@ export class AssessmentListComponent implements OnInit {
     }
   }
 
+<<<<<<< HEAD
   async deleteAssessment(assessment: Assessment) {
     if (confirm(`Deseja realmente excluir a avaliação "${assessment.nome}"?`)) {
       try {
@@ -528,6 +535,34 @@ export class AssessmentListComponent implements OnInit {
         if (error) { this.toastService.error('Erro ao excluir: ' + error.message); }
         else { this.toastService.success('Avaliação excluída!'); this.refresh(); }
       } catch (error: any) { this.toastService.error('Erro ao excluir avaliação.'); }
+=======
+  confirmDelete(assessment: Assessment) {
+    this.assessmentToDelete = assessment;
+    this.isDeleteModalOpen = true;
+  }
+
+  cancelDelete() {
+    this.isDeleteModalOpen = false;
+    this.assessmentToDelete = null;
+  }
+
+  async executeDelete() {
+    if (!this.assessmentToDelete) return;
+
+    try {
+      const { error } = await this.assessmentService.deleteAssessment(this.assessmentToDelete.id);
+      if (error) {
+        this.toastService.error('Erro ao excluir avaliação: ' + (error as any).message);
+      } else {
+        this.toastService.success('Avaliação excluída com sucesso!');
+        this.refresh();
+      }
+    } catch (error: any) {
+      console.error('Erro inesperado ao excluir:', error);
+      this.toastService.error('Erro inesperado ao excluir avaliação.');
+    } finally {
+      this.cancelDelete();
+>>>>>>> c32597f (ajuste do delete)
     }
   }
 
