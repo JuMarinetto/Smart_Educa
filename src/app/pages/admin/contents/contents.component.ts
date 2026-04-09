@@ -80,7 +80,7 @@ import { Question, Alternative } from '../../../core/models/question.model';
           [columns]="columns"
           [data]="contents"
           (edit)="openModal($event)"
-          (delete)="deleteContent($event)">
+          (delete)="confirmDeleteContent($event)">
         </app-data-table>
 
         <app-data-table 
@@ -89,8 +89,42 @@ import { Question, Alternative } from '../../../core/models/question.model';
           [columns]="questionColumns"
           [data]="questions"
           (edit)="openQuestionModal($event)"
-          (delete)="deleteQuestion($event)">
+          (delete)="confirmDeleteQuestion($event)">
         </app-data-table>
+
+        <!-- Modais de Deleção -->
+        <app-ui-modal title="Confirmar Exclusão de Conteúdo" [(isOpen)]="isDeleteContentModalOpen" width="500px">
+          <div class="modal-body" *ngIf="contentToDelete">
+            <p>Tem certeza que deseja excluir o conteúdo <strong>{{ contentToDelete.titulo_tema }}</strong>?</p>
+            <div class="form-actions" style="margin-top: 2rem;">
+              <button type="button" class="btn-secondary" (click)="cancelDeleteContent()">Cancelar</button>
+              <button type="button" class="btn-danger" (click)="executeDeleteContent()">Sim, Excluir</button>
+            </div>
+          </div>
+        </app-ui-modal>
+
+        <app-ui-modal title="Confirmar Exclusão de Questão" [(isOpen)]="isDeleteQuestionModalOpen" width="500px">
+          <div class="modal-body" *ngIf="questionToDelete">
+            <p>Tem certeza que deseja excluir a questão <strong>{{ questionToDelete.titulo || questionToDelete.codigo }}</strong>?</p>
+            <div class="form-actions" style="margin-top: 2rem;">
+              <button type="button" class="btn-secondary" (click)="cancelDeleteQuestion()">Cancelar</button>
+              <button type="button" class="btn-danger" (click)="executeDeleteQuestion()">Sim, Excluir</button>
+            </div>
+          </div>
+        </app-ui-modal>
+
+        <app-ui-modal title="Confirmar Exclusão de Área" [(isOpen)]="isDeleteAreaModalOpen" width="500px">
+          <div class="modal-body" *ngIf="areaToDelete">
+            <p>Tem certeza que deseja excluir a área <strong>{{ areaToDelete.area_conhecimento }}</strong>?</p>
+            <p style="font-size: 0.85rem; color: var(--danger); margin-top: 10px;">
+              ⚠️ ATENÇÃO: Todos os conteúdos e questões desta área também serão excluídos.
+            </p>
+            <div class="form-actions" style="margin-top: 2rem;">
+              <button type="button" class="btn-secondary" (click)="cancelDeleteArea()">Cancelar</button>
+              <button type="button" class="btn-danger" (click)="executeDeleteArea()">Sim, Excluir Área</button>
+            </div>
+          </div>
+        </app-ui-modal>
 
         <app-ui-modal [title]="editingContent ? 'Editar Conteúdo' : 'Novo Conteúdo'" [(isOpen)]="isModalOpen" width="800px">
           <form (submit)="saveContent($event)" class="admin-form">
@@ -244,6 +278,11 @@ import { Question, Alternative } from '../../../core/models/question.model';
             </div>
           </form>
         </app-ui-modal>
+
+        <style>
+          .btn-danger { background: var(--danger); color: white; padding: 0.8rem 1.5rem; border-radius: 8px; border: none; font-weight: 600; cursor: pointer; transition: opacity 0.2s; }
+          .btn-danger:hover { opacity: 0.9; }
+        </style>
       </div>
     </div>
   `,
@@ -351,6 +390,14 @@ export class ContentsComponent implements OnInit {
   showAreaError = false;
   showQuestionError = false;
   isPreviewMode = false;
+
+  // Deletion modals state
+  isDeleteContentModalOpen = false;
+  contentToDelete: any = null;
+  isDeleteQuestionModalOpen = false;
+  questionToDelete: any = null;
+  isDeleteAreaModalOpen = false;
+  areaToDelete: any = null;
 
   @ViewChild('editorTextarea') editorTextarea!: ElementRef<HTMLTextAreaElement>;
 
@@ -521,7 +568,7 @@ export class ContentsComponent implements OnInit {
         : await this.knowledgeService.createContent(payload);
 
       if (response.error) {
-        this.toastService.error('Erro ao salvar conteúdo: ' + response.error.message);
+        this.toastService.error('Erro ao salvar conteúdo: ' + (response.error as any).message);
         console.error(response.error);
       } else {
         this.toastService.success(this.editingContent ? 'Conteúdo atualizado com sucesso!' : 'Conteúdo criado com sucesso!');
@@ -534,20 +581,31 @@ export class ContentsComponent implements OnInit {
     }
   }
 
-  async deleteContent(content: Content) {
-    if (confirm(`Deseja realmente excluir o conteúdo "${content.titulo_tema}"?`)) {
-      try {
-        const { error } = await this.knowledgeService.deleteContent(content.id);
-        if (error) {
-          this.toastService.error('Erro ao excluir: ' + error.message);
-        } else {
-          this.toastService.success('Conteúdo excluído com sucesso!');
-          this.refreshContents();
-        }
-      } catch (error: any) {
-        console.error('Erro ao excluir conteúdo:', error);
-        this.toastService.error('Erro ao excluir conteúdo.');
+  confirmDeleteContent(content: Content) {
+    this.contentToDelete = content;
+    this.isDeleteContentModalOpen = true;
+  }
+
+  cancelDeleteContent() {
+    this.isDeleteContentModalOpen = false;
+    this.contentToDelete = null;
+  }
+
+  async executeDeleteContent() {
+    if (!this.contentToDelete) return;
+    try {
+      const { error } = await this.knowledgeService.deleteContent(this.contentToDelete.id);
+      if (error) {
+        this.toastService.error('Erro ao excluir: ' + (error as any).message);
+      } else {
+        this.toastService.success('Conteúdo excluído com sucesso!');
+        this.refreshContents();
       }
+    } catch (error: any) {
+      console.error('Erro ao excluir conteúdo:', error);
+      this.toastService.error('Erro ao excluir conteúdo.');
+    } finally {
+      this.cancelDeleteContent();
     }
   }
 
@@ -637,20 +695,31 @@ export class ContentsComponent implements OnInit {
     }
   }
 
-  async deleteQuestion(question: Question) {
-    if (confirm(`Deseja realmente excluir a questão "${question.titulo || 'selecionada'}"?`)) {
-      try {
-        const { error } = await this.questionService.deleteQuestion(question.id);
-        if (error) {
-          this.toastService.error('Erro ao excluir: ' + error.message);
-        } else {
-          this.toastService.success('Questão excluída com sucesso!');
-          this.refreshQuestions();
-        }
-      } catch (error: any) {
-        console.error('Erro ao excluir questão:', error);
-        this.toastService.error('Erro ao excluir questão.');
+  confirmDeleteQuestion(question: Question) {
+    this.questionToDelete = question;
+    this.isDeleteQuestionModalOpen = true;
+  }
+
+  cancelDeleteQuestion() {
+    this.isDeleteQuestionModalOpen = false;
+    this.questionToDelete = null;
+  }
+
+  async executeDeleteQuestion() {
+    if (!this.questionToDelete) return;
+    try {
+      const { error } = await this.questionService.deleteQuestion(this.questionToDelete.id);
+      if (error) {
+        this.toastService.error('Erro ao excluir: ' + (error as any).message);
+      } else {
+        this.toastService.success('Questão excluída com sucesso!');
+        this.refreshQuestions();
       }
+    } catch (error: any) {
+      console.error('Erro ao excluir questão:', error);
+      this.toastService.error('Erro ao excluir questão.');
+    } finally {
+      this.cancelDeleteQuestion();
     }
   }
 
@@ -682,24 +751,35 @@ export class ContentsComponent implements OnInit {
     this.openAreaModal(area);
   }
 
-  async onAreaDelete(area: KnowledgeArea) {
-    if (confirm(`Deseja realmente excluir a área "${area.area_conhecimento}"?`)) {
-      try {
-        const { error } = await this.knowledgeService.deleteArea(area.id);
-        if (error) {
-          this.toastService.error('Erro ao excluir: ' + error.message);
-        } else {
-          this.toastService.success('Área excluída com sucesso!');
-          if (this.selectedArea?.id === area.id) {
-            this.selectedArea = null;
-            this.contents = [];
-          }
-          this.refreshAreas();
+  onAreaDelete(area: KnowledgeArea) {
+    this.areaToDelete = area;
+    this.isDeleteAreaModalOpen = true;
+  }
+
+  cancelDeleteArea() {
+    this.isDeleteAreaModalOpen = false;
+    this.areaToDelete = null;
+  }
+
+  async executeDeleteArea() {
+    if (!this.areaToDelete) return;
+    try {
+      const { error } = await this.knowledgeService.deleteArea(this.areaToDelete.id);
+      if (error) {
+        this.toastService.error('Erro ao excluir: ' + (error as any).message);
+      } else {
+        this.toastService.success('Área excluída com sucesso!');
+        if (this.selectedArea?.id === this.areaToDelete.id) {
+          this.selectedArea = null;
+          this.contents = [];
         }
-      } catch (error: any) {
-        console.error('Erro ao excluir área:', error);
-        this.toastService.error('Erro ao excluir área.');
+        this.refreshAreas();
       }
+    } catch (error: any) {
+      console.error('Erro ao excluir área:', error);
+      this.toastService.error('Erro ao excluir área.');
+    } finally {
+      this.cancelDeleteArea();
     }
   }
 
@@ -724,7 +804,7 @@ export class ContentsComponent implements OnInit {
         : await this.knowledgeService.createArea(payload);
         
       if (response.error) {
-        this.toastService.error('Erro ao salvar área: ' + response.error.message);
+        this.toastService.error('Erro ao salvar área: ' + (response.error as any).message);
         console.error(response.error);
       } else {
         this.toastService.success(this.editingArea ? 'Área atualizada com sucesso!' : 'Área criada com sucesso!');

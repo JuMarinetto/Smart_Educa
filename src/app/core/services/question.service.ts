@@ -73,6 +73,11 @@ export class QuestionService {
     }
 
     async deleteQuestion(id: string) {
+        // 1. Remove linked alternatives and assessment links
+        await this.supabase.from('alternatives').delete().eq('id_questao', id);
+        await this.supabase.from('assessment_questions').delete().eq('id_questao', id);
+
+        // 2. Remove the question
         return await this.supabase.from('questions').delete().eq('id', id);
     }
 }

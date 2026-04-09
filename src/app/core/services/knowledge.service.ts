@@ -69,6 +69,12 @@ export class KnowledgeService {
   }
 
   async deleteArea(id: string) {
+    // 1. Unlink or remove dependent contents and questions first
+    // Note: This could be expanded to recursive sub-areas if needed
+    await this.supabase.from('contents').delete().eq('id_area_conhecimento', id);
+    await this.supabase.from('questions').delete().eq('id_area_conhecimento', id);
+
+    // 2. Remove the area
     return await this.supabase.from('knowledge_areas').delete().eq('id', id);
   }
 
@@ -83,6 +89,11 @@ export class KnowledgeService {
   }
 
   async deleteContent(id: string) {
+    // 1. Remove from courses structure first
+    await this.supabase.from('course_contents').delete().eq('id_conteudo', id);
+    await this.supabase.from('topics').delete().eq('id_conteudo', id);
+
+    // 2. Remove the content
     return await this.supabase.from('contents').delete().eq('id', id);
   }
 }

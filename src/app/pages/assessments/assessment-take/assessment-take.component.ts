@@ -342,31 +342,31 @@ import { ProgressService } from '../../../core/services/progress.service';
 })
 export class AssessmentTakeComponent implements OnInit, OnDestroy {
   private assessmentService = inject(AssessmentService);
-  private authService      = inject(AuthService);
-  private progressService  = inject(ProgressService);
-  private toastService     = inject(ToastService);
-  private route            = inject(ActivatedRoute);
-  private router           = inject(Router);
+  private authService = inject(AuthService);
+  private progressService = inject(ProgressService);
+  private toastService = inject(ToastService);
+  private route = inject(ActivatedRoute);
+  private router = inject(Router);
 
-  loading      = true;
+  loading = true;
   assessment: any = null;
   questions: any[] = [];
   answers: Record<string, string> = {};
   currentIndex = 0;
-  isStarted    = false;
+  isStarted = false;
   isSubmitting = false;
-  submitted    = false;
+  submitted = false;
   alreadyCompleted = false;
   timeLeft = 0;
   private timer: any;
 
   // Result state
-  scoreObtained  = 0;
-  correctCount   = 0;
-  scorePercent   = 0;
-  passingScore   = 0;
-  passed          = false;
-  hasReviewed     = false;   // libera o botão Tentar Novamente
+  scoreObtained = 0;
+  correctCount = 0;
+  scorePercent = 0;
+  passingScore = 0;
+  passed = false;
+  hasReviewed = false;   // libera o botão Tentar Novamente
   relatedCourseId: string | null = null;
 
   // Chave usada no localStorage para sinalizar retorno da revisão
@@ -376,13 +376,13 @@ export class AssessmentTakeComponent implements OnInit, OnDestroy {
   // Desempenho por módulo/conteúdo
   moduleScores: { nome: string; obtained: number; required: number; maxScore: number; passed: boolean }[] = [];
   firstFailedContentId: string | null = null;  // para deep-link na revisão
-  firstFailedCourseId:  string | null = null;  // curso do conteudo reprovado
+  firstFailedCourseId: string | null = null;  // curso do conteudo reprovado
 
   private assessmentId: string | null = null;
 
   get currentQuestion() { return this.questions[this.currentIndex] || null; }
-  get progressPercent()  { return this.questions.length > 0 ? ((this.currentIndex + 1) / this.questions.length) * 100 : 0; }
-  get answeredCount()    { return Object.keys(this.answers).length; }
+  get progressPercent() { return this.questions.length > 0 ? ((this.currentIndex + 1) / this.questions.length) * 100 : 0; }
+  get answeredCount() { return Object.keys(this.answers).length; }
   get formattedTime() {
     const m = Math.floor(this.timeLeft / 60);
     const s = this.timeLeft % 60;
@@ -424,7 +424,7 @@ export class AssessmentTakeComponent implements OnInit, OnDestroy {
   async loadAssessment(assessmentId: string) {
     this.loading = true;
 
-    const profile   = this.authService.getLoggedProfile();
+    const profile = this.authService.getLoggedProfile();
     const studentId = profile?.id;
 
     if (studentId) {
@@ -438,16 +438,16 @@ export class AssessmentTakeComponent implements OnInit, OnDestroy {
         if (snap.status_aprovacao === true) {
           // Usa getAssessmentById para buscar só esta avaliação
           this.assessmentService.getAssessmentById(assessmentId).subscribe(assessment => {
-            this.assessment     = assessment;
-            const notaTotal     = assessment?.nota_total || 10;
+            this.assessment = assessment;
+            const notaTotal = assessment?.nota_total || 10;
             this.relatedCourseId = assessment?.id_curso || null;
-            this.scoreObtained  = snap.nota_obtida || 0;
-            this.passingScore   = assessment?.nota_corte || (notaTotal * 0.6);
-            this.scorePercent   = notaTotal > 0 ? (this.scoreObtained / notaTotal) * 100 : 0;
-            this.passed         = true;
+            this.scoreObtained = snap.nota_obtida || 0;
+            this.passingScore = assessment?.nota_corte || (notaTotal * 0.6);
+            this.scorePercent = notaTotal > 0 ? (this.scoreObtained / notaTotal) * 100 : 0;
+            this.passed = true;
             this.alreadyCompleted = true;
-            this.submitted      = true;
-            this.loading        = false;
+            this.submitted = true;
+            this.loading = false;
           });
           return;
         }
@@ -458,26 +458,26 @@ export class AssessmentTakeComponent implements OnInit, OnDestroy {
     // Carrega metadados e questões EM PARALELO em vez de sequencial
     forkJoin({
       assessment: this.assessmentService.getAssessmentById(assessmentId),
-      questions:  this.assessmentService.getQuestionsForAssessment(assessmentId)
+      questions: this.assessmentService.getQuestionsForAssessment(assessmentId)
     }).subscribe(({ assessment, questions }) => {
       if (!assessment) {
         this.toastService.error('Avaliação não encontrada.');
         this.loading = false;
         return;
       }
-      this.assessment      = assessment;
+      this.assessment = assessment;
       this.relatedCourseId = assessment.id_curso || null;
       if (assessment.duracao) this.timeLeft = assessment.duracao * 60;
 
       this.questions = questions;
-      this.loading   = false;
+      this.loading = false;
     });
   }
 
   start() {
-    this.isStarted   = true;
+    this.isStarted = true;
     this.currentIndex = 0;
-    this.answers      = {};
+    this.answers = {};
 
     if (this.assessment?.cronometro && this.timeLeft > 0) {
       this.timer = setInterval(() => {
@@ -496,18 +496,18 @@ export class AssessmentTakeComponent implements OnInit, OnDestroy {
 
   /** Reseta para nova tentativa sem recarregar a página */
   resetForRetry() {
-    this.submitted        = false;
-    this.isStarted        = false;
+    this.submitted = false;
+    this.isStarted = false;
     this.alreadyCompleted = false;
-    this.hasReviewed      = false;   // exige nova revisão a cada tentativa
-    this.answers          = {};
-    this.currentIndex     = 0;
-    this.moduleScores     = [];
+    this.hasReviewed = false;   // exige nova revisão a cada tentativa
+    this.answers = {};
+    this.currentIndex = 0;
+    this.moduleScores = [];
     this.firstFailedContentId = null;
-    this.scoreObtained    = 0;
-    this.correctCount     = 0;
-    this.scorePercent     = 0;
-    this.passed           = false;
+    this.scoreObtained = 0;
+    this.correctCount = 0;
+    this.scorePercent = 0;
+    this.passed = false;
     if (this.timer) clearInterval(this.timer);
     if (this.assessment?.duracao) this.timeLeft = this.assessment.duracao * 60;
   }
@@ -543,7 +543,7 @@ export class AssessmentTakeComponent implements OnInit, OnDestroy {
     if (this.timer) clearInterval(this.timer);
 
     try {
-      const profile   = this.authService.getLoggedProfile();
+      const profile = this.authService.getLoggedProfile();
       const studentId = profile?.id || 'unknown';
 
       // 1. Salva o snapshot
@@ -553,15 +553,15 @@ export class AssessmentTakeComponent implements OnInit, OnDestroy {
 
       // 2. Calcula nota geral e por conteúdo
       this.correctCount = 0;
-      const notaTotal   = this.assessment?.nota_total || 10;
+      const notaTotal = this.assessment?.nota_total || 10;
       const regras: Record<string, number> = this.assessment?.regras_nota_minima_conteudo || {};
 
       // Faz um JOIN das questões com o dado do conteúdo
       const contentMap: Record<string, { nome: string; acertos: number; total: number }> = {};
 
       for (const q of this.questions) {
-        const contentId: string | null   = q.id_conteudo || null;
-        const contentName: string       = (q as any).contents?.titulo_tema || q.id_conteudo || 'Módulo';
+        const contentId: string | null = q.id_conteudo || null;
+        const contentName: string = (q as any).contents?.titulo_tema || q.id_conteudo || 'Módulo';
         const selectedAltId: string | undefined = this.answers[q.id];
 
         if (contentId) {
@@ -578,10 +578,10 @@ export class AssessmentTakeComponent implements OnInit, OnDestroy {
         }
       }
 
-      const totalQ      = this.questions.length;
+      const totalQ = this.questions.length;
       this.scoreObtained = totalQ > 0 ? (this.correctCount / totalQ) * notaTotal : 0;
-      this.passingScore  = this.assessment?.nota_corte || (notaTotal * 0.6);
-      this.scorePercent  = notaTotal > 0 ? (this.scoreObtained / notaTotal) * 100 : 0;
+      this.passingScore = this.assessment?.nota_corte || (notaTotal * 0.6);
+      this.scorePercent = notaTotal > 0 ? (this.scoreObtained / notaTotal) * 100 : 0;
 
       // 3. Verifica aprovação geral
       let passedAll = this.scoreObtained >= this.passingScore;
@@ -590,16 +590,16 @@ export class AssessmentTakeComponent implements OnInit, OnDestroy {
       this.moduleScores = [];
       for (const [contentId, data] of Object.entries(contentMap)) {
         // Converte acertos para escala proporcional da nota total
-        const obtidaEscala   = data.total > 0 ? (data.acertos / data.total) * notaTotal : 0;
+        const obtidaEscala = data.total > 0 ? (data.acertos / data.total) * notaTotal : 0;
         const requiredEscala = regras[contentId] || 0;
-        const modPassed      = requiredEscala === 0 || obtidaEscala >= requiredEscala;
+        const modPassed = requiredEscala === 0 || obtidaEscala >= requiredEscala;
         if (!modPassed) passedAll = false;
         this.moduleScores.push({
-          nome:     data.nome,
+          nome: data.nome,
           obtained: obtidaEscala,
           required: requiredEscala,
           maxScore: notaTotal,
-          passed:   modPassed
+          passed: modPassed
         });
       }
 
@@ -607,7 +607,7 @@ export class AssessmentTakeComponent implements OnInit, OnDestroy {
 
       // 5. Identifica primeiro módulo reprovado para deep-link de revisão
       this.firstFailedContentId = null;
-      this.firstFailedCourseId  = null;
+      this.firstFailedCourseId = null;
       for (const q of this.questions) {
         const cid = q.id_conteudo || null;
         if (!cid) continue;
@@ -617,7 +617,7 @@ export class AssessmentTakeComponent implements OnInit, OnDestroy {
         const modPassed = required === 0 || obtained >= required;
         if (!modPassed && !this.firstFailedContentId) {
           this.firstFailedContentId = cid;
-          this.firstFailedCourseId  = q.contents?.id_curso || null;
+          this.firstFailedCourseId = q.contents?.id_curso || null;
         }
       }
 

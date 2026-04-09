@@ -130,7 +130,33 @@ export class CourseService {
   }
 
   async deleteCourse(id: string) {
-    return await this.supabase.from('courses').delete().eq('id', id);
+    try {
+      // 1. Limpar vínculos com turmas
+      await this.supabase.from('class_courses').delete().eq('id_curso', id);
+      
+      // 2. Limpar certificados emitidos para este curso
+      await this.supabase.from('certificates').delete().eq('id_curso', id);
+      
+      // 3. Limpar estrutura do roteiro (tópicos e itens vinculados)
+      const { data: topics } = await this.supabase
+        .from('topics')
+        .select('id')
+        .eq('id_curso', id);
+        
+      if (topics && topics.length > 0) {
+        const topicIds = topics.map(t => t.id);
+        // Primeiro deleta os registros de id_conteudo/id_questao vinculados aos tópicos
+        await this.supabase.from('course_contents').delete().in('id_topico', topicIds);
+        // Depois deleta os tópicos
+        await this.supabase.from('topics').delete().eq('id_curso', id);
+      }
+      
+      // 4. Finalmente, deletar o curso
+      return await this.supabase.from('courses').delete().eq('id', id);
+    } catch (error: any) {
+      console.error('Erro ao deletar curso em cascata:', error);
+      return { error: { message: error.message || 'Erro inesperado ao deletar curso' } };
+    }
   }
 
   async saveCourseStructure(courseId: string, modules: { id?: string, nome: string, items?: any[], contents?: any[] }[]) {

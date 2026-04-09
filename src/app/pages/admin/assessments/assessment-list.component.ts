@@ -43,8 +43,21 @@ interface ContentRule {
         [columns]="columns"
         [data]="assessments"
         (edit)="openModal($event)"
-        (delete)="deleteAssessment($event)">
+        (delete)="confirmDelete($event)">
       </app-data-table>
+
+      <app-ui-modal title="Confirmar Exclusão" [(isOpen)]="isDeleteModalOpen" width="500px">
+        <div class="modal-body" *ngIf="assessmentToDelete">
+          <p>Tem certeza que deseja excluir a avaliação <strong>{{ assessmentToDelete.nome }}</strong>?</p>
+          <p style="font-size: 0.85rem; color: var(--danger); margin-top: 10px;">
+            ⚠️ ATENÇÃO: Todos os históricos de tentativas dos alunos desta avaliação também serão excluídos. Esta ação não pode ser desfeita.
+          </p>
+          <div class="form-actions" style="margin-top: 2rem;">
+            <button type="button" class="btn-secondary" (click)="cancelDelete()">Cancelar</button>
+            <button type="button" class="btn-danger" (click)="executeDelete()">Sim, Excluir Avaliação</button>
+          </div>
+        </div>
+      </app-ui-modal>
 
       <!-- MODAL: Metadados da Avaliação -->
       <app-ui-modal [title]="editingAssessment ? 'Editar Avaliação' : 'Nova Avaliação'" [(isOpen)]="isModalOpen">
@@ -247,6 +260,8 @@ interface ContentRule {
     .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; }
     .btn-primary { background: var(--primary); color: white; padding: 0.8rem 1.5rem; border-radius: 8px; display: flex; align-items: center; gap: 8px; font-weight: 600; border: none; cursor: pointer; }
     .btn-secondary { background: var(--bg-main); border: 1px solid var(--border); color: var(--text-main); padding: 0.8rem 1.5rem; border-radius: 8px; cursor: pointer; }
+    .btn-danger { background: var(--danger); color: white; padding: 0.8rem 1.5rem; border-radius: 8px; border: none; font-weight: 600; cursor: pointer; transition: opacity 0.2s; }
+    .btn-danger:hover { opacity: 0.9; }
 
     .admin-form { display: flex; flex-direction: column; gap: 1.25rem; }
     .form-group { display: flex; flex-direction: column; gap: 0.5rem; }
@@ -381,6 +396,9 @@ export class AssessmentListComponent implements OnInit {
   };
   showError = false;
 
+  isDeleteModalOpen = false;
+  assessmentToDelete: Assessment | null = null;
+
   // --- Questions Modal ---
   isQuestionsModalOpen = false;
   currentAssessmentId = '';
@@ -505,40 +523,32 @@ export class AssessmentListComponent implements OnInit {
     }
   }
 
-  async deleteAssessment(assessment: Assessment) {
-    const confirmed = confirm(
-      `Tem certeza que deseja excluir a avaliação "${assessment.nome}"?\n\n` +
-      `⚠️ ATENÇÃO: Todos os históricos de tentativas dos alunos desta avaliação também serão excluídos. Esta ação não pode ser desfeita.`
-    );
-    if (!confirmed) return;
+  confirmDelete(assessment: Assessment) {
+    this.assessmentToDelete = assessment;
+    this.isDeleteModalOpen = true;
+  }
+
+  cancelDelete() {
+    this.isDeleteModalOpen = false;
+    this.assessmentToDelete = null;
+  }
+
+  async executeDelete() {
+    if (!this.assessmentToDelete) return;
 
     try {
-      // 1. Remove os snapshots (tentativas dos alunos) vinculados a esta avaliação
-      const { error: snapError } = await this.assessmentService.deleteSnapshotsByAssessmentId(assessment.id);
-      
-      if (snapError) {
-        this.toastService.error('Erro ao excluir tentativas: ' + snapError.message);
-        return;
-      }
-
-      // 2. Remove as questões vinculadas à avaliação (tabela de junção)
-      const { error: qError } = await this.assessmentService.deleteQuestionsLinksByAssessmentId(assessment.id);
-      
-      if (qError) {
-        this.toastService.error('Erro ao excluir vínculos de questões: ' + qError.message);
-        return;
-      }
-
-      // 3. Deleta a avaliação em si
-      const { error } = await this.assessmentService.deleteAssessment(assessment.id);
+      const { error } = await this.assessmentService.deleteAssessment(this.assessmentToDelete.id);
       if (error) {
-        this.toastService.error('Erro ao excluir avaliação: ' + error.message);
+        this.toastService.error('Erro ao excluir avaliação: ' + (error as any).message);
       } else {
         this.toastService.success('Avaliação excluída com sucesso!');
         this.refresh();
       }
     } catch (error: any) {
+      console.error('Erro inesperado ao excluir:', error);
       this.toastService.error('Erro inesperado ao excluir avaliação.');
+    } finally {
+      this.cancelDelete();
     }
   }
 

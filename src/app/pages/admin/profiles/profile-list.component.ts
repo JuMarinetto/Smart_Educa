@@ -300,7 +300,7 @@ export class ProfileListComponent implements OnInit {
         : await this.profileService.createProfile(payload);
 
       if (response.error) {
-        this.toastService.error('Erro ao salvar perfil: ' + response.error.message);
+        this.toastService.error('Erro ao salvar perfil: ' + (response.error as any).message);
         console.error(response.error);
       } else {
         this.toastService.success(this.editingProfile ? 'Perfil atualizado com sucesso!' : 'Perfil criado com sucesso!');
@@ -329,7 +329,7 @@ export class ProfileListComponent implements OnInit {
     try {
       const { error } = await this.profileService.deleteProfile(this.profileToDelete.id);
       if (error) {
-        this.toastService.error('Erro ao excluir: ' + error.message);
+        this.toastService.error('Erro ao excluir: ' + (error as any).message);
       } else {
         this.toastService.success('Perfil excluído com sucesso!');
         this.refresh();

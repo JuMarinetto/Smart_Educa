@@ -149,6 +149,11 @@ export class AssessmentService {
   }
 
   async deleteAssessment(id: string) {
+    // 1. Remove dependent records first
+    await this.deleteSnapshotsByAssessmentId(id);
+    await this.deleteQuestionsLinksByAssessmentId(id);
+
+    // 2. Remove the assessment itself
     return await this.supabase.from('assessments').delete().eq('id', id);
   }
 

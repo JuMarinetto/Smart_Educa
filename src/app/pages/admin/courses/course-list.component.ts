@@ -81,6 +81,17 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
           </div>
         </form>
       </app-ui-modal>
+
+      <app-ui-modal title="Confirmar Exclusão" [(isOpen)]="isDeleteModalOpen" width="400px">
+        <div class="delete-confirm">
+          <p>Deseja realmente excluir o curso <strong>{{ courseToDelete?.titulo }}</strong>?</p>
+          <p class="warning-text">Esta ação apagará todos os tópicos e certificados vinculados e não pode ser desfeita.</p>
+          <div class="form-actions">
+            <button class="btn-secondary" (click)="isDeleteModalOpen = false">Cancelar</button>
+            <button class="btn-danger" (click)="confirmDelete()">Sim, Excluir</button>
+          </div>
+        </div>
+      </app-ui-modal>
     </div>
   `,
   styles: [`
@@ -88,6 +99,7 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
     .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; }
     .btn-primary { background: var(--primary); color: white; padding: 0.8rem 1.5rem; border-radius: 8px; display: flex; align-items: center; gap: 8px; font-weight: 600; border: none; cursor: pointer; }
     .btn-secondary { background: var(--bg-main); border: 1px solid var(--border); color: var(--text-main); padding: 0.8rem 1.5rem; border-radius: 8px; cursor: pointer; }
+    .btn-danger { background: var(--danger); color: white; padding: 0.8rem 1.5rem; border-radius: 8px; border: none; cursor: pointer; font-weight: 600; }
     
     .admin-form { display: flex; flex-direction: column; gap: 1.5rem; }
     .form-group { display: flex; flex-direction: column; gap: 0.5rem; }
@@ -100,6 +112,9 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
     .btn-builder:hover { background: var(--primary); color: white; }
 
     .form-actions { display: flex; justify-content: flex-end; gap: 1rem; margin-top: 1rem; }
+    .delete-confirm { text-align: center; }
+    .delete-confirm p { margin-bottom: 1rem; color: var(--text-main); }
+    .warning-text { font-size: 0.85rem; color: var(--danger) !important; font-weight: 500; }
   `]
 })
 export class CourseListComponent implements OnInit {
@@ -112,7 +127,9 @@ export class CourseListComponent implements OnInit {
   professors: Profile[] = [];
 
   isModalOpen = false;
+  isDeleteModalOpen = false;
   editingCourse: Course | null = null;
+  courseToDelete: Course | null = null;
   courseForm: Partial<Course> = {
     titulo: '',
     id_professor: null,
@@ -222,19 +239,26 @@ export class CourseListComponent implements OnInit {
   }
 
   async deleteCourse(course: Course) {
-    if (confirm(`Deseja realmente excluir o curso "${course.titulo}"?`)) {
-      try {
-        const { error } = await this.courseService.deleteCourse(course.id);
-        if (error) {
-          this.toastService.error('Erro ao excluir: ' + error.message);
-        } else {
-          this.toastService.success('Curso excluído com sucesso!');
-          this.refresh();
-        }
-      } catch (error: any) {
-        console.error('Erro ao excluir curso:', error);
-        this.toastService.error('Erro ao excluir curso.');
+    this.courseToDelete = course;
+    this.isDeleteModalOpen = true;
+  }
+
+  async confirmDelete() {
+    if (!this.courseToDelete) return;
+    
+    try {
+      const { error } = await this.courseService.deleteCourse(this.courseToDelete.id);
+      if (error) {
+        this.toastService.error('Erro ao excluir: ' + (error as any).message);
+      } else {
+        this.toastService.success('Curso excluído com sucesso!');
+        this.isDeleteModalOpen = false;
+        this.courseToDelete = null;
+        this.refresh();
       }
+    } catch (error: any) {
+      console.error('Erro ao excluir curso:', error);
+      this.toastService.error('Erro ao excluir curso.');
     }
   }
 }

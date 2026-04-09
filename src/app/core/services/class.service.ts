@@ -48,6 +48,11 @@ export class ClassService {
     }
 
     async deleteClass(id: string) {
+        // 1. Remove linked entities first
+        await this.supabase.from('class_courses').delete().eq('id_turma', id);
+        await this.supabase.from('class_students').delete().eq('id_turma', id);
+
+        // 2. Remove the class itself
         return await this.supabase.from('classes').delete().eq('id', id);
     }
 

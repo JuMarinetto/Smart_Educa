@@ -46,6 +46,17 @@ export class ProfileService {
     }
 
     async deleteProfile(id: string) {
+        // 1. Remove student associations
+        await this.supabase.from('class_students').delete().eq('id_aluno', id);
+        await this.supabase.from('assessment_snapshots').delete().eq('id_aluno', id);
+        await this.supabase.from('student_progress').delete().eq('id_aluno', id);
+        await this.supabase.from('certificates').delete().eq('id_aluno', id);
+
+        // 2. Unlink if it's a professor (don't delete the course/class, just remove the link)
+        await this.supabase.from('courses').update({ id_professor: null }).eq('id_professor', id);
+        await this.supabase.from('classes').update({ id_professor: null }).eq('id_professor', id);
+
+        // 3. Remove the profile itself
         return await this.supabase
             .from('profiles')
             .delete()

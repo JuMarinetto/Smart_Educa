@@ -33,8 +33,19 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
         [columns]="columns"
         [data]="classes"
         (edit)="openModal($event)"
-        (delete)="deleteClass($event)">
+        (delete)="confirmDelete($event)">
       </app-data-table>
+
+      <app-ui-modal title="Confirmar Exclusão" [(isOpen)]="isDeleteModalOpen" width="450px">
+        <div class="modal-body" *ngIf="classToDelete">
+          <p>Tem certeza que deseja excluir a turma <strong>{{ classToDelete.nome_turma }}</strong>?</p>
+          <p style="font-size: 0.85rem; color: var(--danger); margin-top: 10px;">Esta ação não poderá ser desfeita e removerá todos os vínculos com alunos e cursos.</p>
+          <div class="form-actions" style="margin-top: 2rem;">
+            <button type="button" class="btn-secondary" (click)="cancelDelete()">Cancelar</button>
+            <button type="button" class="btn-danger" (click)="executeDelete()">Sim, Excluir Turma</button>
+          </div>
+        </div>
+      </app-ui-modal>
 
       <app-ui-modal [title]="editingClass ? 'Editar Turma' : 'Nova Turma'" [(isOpen)]="isModalOpen" width="620px">
         <form (submit)="saveClass($event)" class="admin-form" id="classForm">
@@ -167,6 +178,9 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
 
     .empty-state { text-align: center; padding: 1.5rem; color: var(--text-muted); font-size: 0.875rem; background: var(--bg-main); border-radius: 8px; border: 1px dashed var(--border); }
 
+    .btn-danger { background: var(--danger); color: white; padding: 0.8rem 1.5rem; border-radius: 8px; border: none; font-weight: 600; cursor: pointer; transition: opacity 0.2s; }
+    .btn-danger:hover { opacity: 0.9; }
+
     /* Error states */
     .form-alert { display: flex; align-items: center; gap: 8px; padding: 0.75rem 1rem; border-radius: 8px; font-size: 0.875rem; font-weight: 500; }
     .form-alert-error { background: rgba(239,68,68,0.1); color: #ef4444; border: 1px solid rgba(239,68,68,0.25); }
@@ -206,6 +220,9 @@ export class ClassListComponent implements OnInit {
     id_professor: null
   };
   showError = false;
+
+  isDeleteModalOpen = false;
+  classToDelete: any = null;
 
   columns: TableColumn[] = [
     { key: 'nome_turma', label: 'Nome da Turma' },
@@ -364,20 +381,32 @@ export class ClassListComponent implements OnInit {
     this.updateAvailableCourses();
   }
 
-  async deleteClass(clazz: Class) {
-    if (confirm(`Deseja realmente excluir a turma "${clazz.nome_turma}"?`)) {
-      try {
-        const { error } = await this.classService.deleteClass(clazz.id);
-        if (error) {
-          this.toastService.error('Erro ao excluir: ' + error.message);
-        } else {
-          this.toastService.success('Turma excluída com sucesso!');
-          this.refresh();
-        }
-      } catch (error: any) {
-        console.error('Erro ao excluir turma:', error);
-        this.toastService.error('Erro ao excluir turma.');
+  confirmDelete(clazz: Class) {
+    this.classToDelete = clazz;
+    this.isDeleteModalOpen = true;
+  }
+
+  cancelDelete() {
+    this.isDeleteModalOpen = false;
+    this.classToDelete = null;
+  }
+
+  async executeDelete() {
+    if (!this.classToDelete) return;
+
+    try {
+      const { error } = await this.classService.deleteClass(this.classToDelete.id);
+      if (error) {
+        this.toastService.error('Erro ao excluir: ' + (error as any).message);
+      } else {
+        this.toastService.success('Turma excluída com sucesso!');
+        this.refresh();
       }
+    } catch (error: any) {
+      console.error('Erro ao excluir turma:', error);
+      this.toastService.error('Erro ao excluir turma.');
+    } finally {
+      this.cancelDelete();
     }
   }
 
