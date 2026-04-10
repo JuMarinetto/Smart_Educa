@@ -27,7 +27,25 @@ export class KnowledgeService {
   }
 
   /** Retorna conteúdos de uma área de conhecimento específica (ou todos, se sem filtro). */
-  getContentsByArea(areaId: string) {
+  getContentsByArea(areaId: string | null | undefined) {
+    const baseQuery = this.supabase
+      .from('contents')
+      .select('*, knowledge_areas!inner(path)')
+      .eq('is_latest', true);
+
+    if (!areaId) {
+      // Se não houver área especificada, retorna todos os conteúdos mais recentes
+      return from(baseQuery).pipe(
+        map((res: any) => {
+          if (res.error) {
+            console.error('Erro ao buscar todos os conteúdos:', res.error);
+            return [];
+          }
+          return (res.data as Content[]) || [];
+        })
+      );
+    }
+
     return from(
       this.supabase.from('knowledge_areas').select('path').eq('id', areaId).single()
     ).pipe(
@@ -38,17 +56,13 @@ export class KnowledgeService {
         }
 
         const path = res.data?.path;
-        const query = this.supabase
-          .from('contents')
-          .select('*, knowledge_areas!inner(path)')
-          .eq('is_latest', true);
-
+        
         // Aplica filtro de descendência ltree se o caminho estiver disponível
         if (path) {
-          return from(query.filter('knowledge_areas.path', 'cs', path));
+          return from(baseQuery.filter('knowledge_areas.path', 'cs', path));
         }
 
-        return from(query);
+        return from(baseQuery);
       }),
       map((res: any) => {
         if (res.error) {

@@ -10,9 +10,12 @@ import { forkJoin } from 'rxjs';
 interface CatalogCourse {
   id: string;
   titulo: string;
+  descricao?: string;
+  tags?: string[];
   status: string;
   created_at: string;
   enrolled: boolean;
+  matriculado: boolean;
   enrolling?: boolean;
 }
 
@@ -33,8 +36,8 @@ interface CatalogCourse {
           <input
             type="text"
             placeholder="Buscar cursos..."
-            [(ngModel)]="searchTerm"
-            (input)="filterCourses()"
+            [ngModel]="searchTerm"
+            (ngModelChange)="searchTerm = $event; filterCourses()"
           />
         </div>
       </section>
@@ -492,6 +495,7 @@ export class StudentCatalogComponent implements OnInit {
           .map(c => ({
             ...c,
             enrolled: enrolledIds.has(c.id),
+            matriculado: enrolledIds.has(c.id)
           }));
         this.filterCourses();
         this.loading = false;
@@ -509,22 +513,29 @@ export class StudentCatalogComponent implements OnInit {
   }
 
   filterCourses() {
+    console.log('[StudentCatalog] Filtrando com:', { term: this.searchTerm, filter: this.activeFilter, total: this.allCourses.length });
+    
     let result = [...this.allCourses];
 
     // Text search
-    if (this.searchTerm.trim()) {
+    if (this.searchTerm && this.searchTerm.trim()) {
       const term = this.searchTerm.toLowerCase();
-      result = result.filter(c => c.titulo.toLowerCase().includes(term));
+      result = result.filter(c => 
+        (c.titulo || '').toLowerCase().includes(term) ||
+        (c.descricao || '').toLowerCase().includes(term) ||
+        (c.tags || []).some((t: string) => t.toLowerCase().includes(term))
+      );
     }
 
     // Tab filter
     if (this.activeFilter === 'available') {
-      result = result.filter(c => !c.enrolled);
+      result = result.filter(c => !c.matriculado);
     } else if (this.activeFilter === 'enrolled') {
-      result = result.filter(c => c.enrolled);
+      result = result.filter(c => c.matriculado);
     }
 
     this.filteredCourses = result;
+    console.log('[StudentCatalog] Resultados:', this.filteredCourses.length);
   }
 
   enroll(course: CatalogCourse) {
@@ -552,6 +563,7 @@ export class StudentCatalogComponent implements OnInit {
         if (error) {
           if ((error as any).code === '23505') {
             course.enrolled = true;
+            course.matriculado = true;
             this.showToast('Você já está matriculado neste curso!', false);
           } else {
             console.error('Enrollment error:', error);
@@ -559,6 +571,7 @@ export class StudentCatalogComponent implements OnInit {
           }
         } else {
           course.enrolled = true;
+          course.matriculado = true;
           this.showToast(`Matrícula realizada em "${course.titulo}"!`, false);
         }
         course.enrolling = false;

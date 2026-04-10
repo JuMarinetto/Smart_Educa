@@ -65,7 +65,7 @@ type Step = 'upload' | 'preview' | 'result';
         <button class="btn-primary" [disabled]="!selectedFile || parsing" (click)="parseFile()">
           <lucide-icon *ngIf="!parsing" name="ArrowRight" size="18"></lucide-icon>
           <lucide-icon *ngIf="parsing" name="Loader2" size="18" class="spin"></lucide-icon>
-          {{ parsing ? 'Lendo arquivo...' : 'Avançar para Preview' }}
+          <span>{{ parsing ? 'Lendo arquivo...' : 'Avançar para Preview' }}</span>
         </button>
       </div>
 
@@ -212,9 +212,7 @@ type Step = 'upload' | 'preview' | 'result';
             Voltar
           </button>
           <button class="btn-primary" [disabled]="importing" (click)="runImport()">
-            <lucide-icon *ngIf="!importing" name="Zap" size="18"></lucide-icon>
-            <lucide-icon *ngIf="importing" name="Loader2" size="18" class="spin"></lucide-icon>
-            {{ importing ? 'Importando...' : 'Confirmar Importação' }}
+            Confirmar Importação
           </button>
         </div>
       </div>
@@ -294,10 +292,27 @@ type Step = 'upload' | 'preview' | 'result';
 
     .btn-template { display: flex; align-items: center; gap: 8px; padding: 0.7rem 1.2rem; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-card); color: var(--text-main); font-weight: 600; cursor: pointer; transition: all 0.2s; font-size: 0.875rem; }
     .btn-template:hover { background: rgba(139,92,246,0.08); border-color: var(--primary); color: var(--primary); }
-    .btn-primary { display: flex; align-items: center; gap: 8px; background: var(--primary); color: white; padding: 0.8rem 1.5rem; border-radius: 8px; border: none; cursor: pointer; font-weight: 600; font-size: 0.9rem; transition: all 0.2s; }
-    .btn-primary:hover:not(:disabled) { opacity: 0.9; transform: translateY(-1px); }
+    .btn-primary { 
+      display: inline-flex; 
+      align-items: center; 
+      justify-content: center;
+      gap: 10px; 
+      background: var(--primary); 
+      color: #ffffff !important; 
+      padding: 0.8rem 2rem; 
+      border-radius: 10px; 
+      border: none; 
+      cursor: pointer; 
+      font-weight: 700; 
+      font-size: 0.95rem; 
+      transition: all 0.2s; 
+      white-space: nowrap;
+      min-width: 180px;
+    }
+    .btn-primary:hover:not(:disabled) { opacity: 0.9; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(var(--primary-rgb), 0.3); }
     .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
-    .btn-secondary { display: flex; align-items: center; gap: 8px; background: var(--bg-card); border: 1px solid var(--border); color: var(--text-main); padding: 0.8rem 1.5rem; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 0.9rem; }
+    .btn-secondary { display: inline-flex; align-items: center; gap: 8px; background: var(--bg-card); border: 1px solid var(--border); color: var(--text-main); padding: 0.8rem 1.5rem; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 0.9rem; transition: all 0.2s; }
+    .btn-secondary:hover { background: rgba(255,255,255,0.05); }
 
     /* Stepper */
     .stepper { display: flex; align-items: center; margin-bottom: 2rem; }

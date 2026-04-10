@@ -23,10 +23,7 @@ import { Profile } from '../../core/models/profile.model';
             <p class="brand-name" *ngIf="!sidebarCollapsed">SmartEduca</p>
           </div>
 
-          <div class="search-box" *ngIf="!sidebarCollapsed">
-            <lucide-icon name="Search" size="14"></lucide-icon>
-            <input type="text" placeholder="Buscar cursos..." [(ngModel)]="searchTerm">
-          </div>
+
 
           <nav class="nav-main">
             <a class="nav-link" routerLink="/student/dashboard" routerLinkActive="active">
@@ -79,10 +76,7 @@ import { Profile } from '../../core/models/profile.model';
           </nav>
 
           <div class="topbar-right">
-            <div class="search-topbar">
-              <lucide-icon name="Search" size="16"></lucide-icon>
-              <input type="text" placeholder="Buscar cursos, aulas, conteúdos..." [(ngModel)]="searchTerm">
-            </div>
+
             <button class="icon-btn" (click)="themeService.toggleTheme()">
               <lucide-icon [name]="themeService.currentTheme() === 'light' ? 'Moon' : 'Sun'" size="18"></lucide-icon>
             </button>
