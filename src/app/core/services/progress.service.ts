@@ -140,6 +140,42 @@ export class ProgressService {
 
     return (progress?.length || 0) === contentIds.length;
   }
+  /**
+   * Marca todos os conteúdos de um curso como concluídos para um aluno.
+   * Útil para o botão "Finalizar Curso".
+   */
+  async completeAllCourseContent(studentId: string, courseId: string): Promise<boolean> {
+    if (!courseId || !studentId) return false;
+
+    // 1. Coleta todos os conteúdos do curso
+    const allContentIds = await this._collectContentIds(courseId);
+    if (allContentIds.length === 0) return false;
+
+    const now = new Date().toISOString();
+    
+    // 2. Prepara os payloads para upsert em lote
+    const payloads = allContentIds.map(id => ({
+      id_aluno: studentId,
+      id_conteudo: id,
+      status: 'CONCLUIDO',
+      porcentagem_concluida: 100,
+      data_ultima_visualizacao: now,
+      data_conclusao: now
+    }));
+
+    // 3. Executa o upsert
+    const { error } = await this.supabase
+      .from('student_progress')
+      .upsert(payloads, { onConflict: 'id_aluno,id_conteudo' });
+
+    if (error) {
+      console.error('Erro ao finalizar curso em lote:', error);
+      return false;
+    }
+
+    // 4. Emite o certificado (o método checkAndIssueCertificate já lida com a lógica de verificação e inserção)
+    return await this.checkAndIssueCertificate(studentId, courseId);
+  }
 
   // ─── Métodos privados ────────────────────────────────────────────────────────
 

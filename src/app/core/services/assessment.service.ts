@@ -128,7 +128,7 @@ export class AssessmentService {
           questions:id_questao(
             id, titulo, enunciado, codigo, id_conteudo,
             alternatives(*),
-            contents:id_conteudo(id, titulo_tema, id_curso)
+            contents:id_conteudo(id, titulo_tema)
           )
         `)
         .eq('id_avaliacao', assessmentId)

@@ -176,7 +176,7 @@ interface ContentRule {
             <div class="qm-filters">
               <div class="qm-search flex-1">
                 <lucide-icon name="Search" size="16"></lucide-icon>
-                <input type="text" [(ngModel)]="questionSearch" name="qsearch" placeholder="Buscar por título ou enunciado...">
+                <input type="text" [ngModel]="questionSearch" (ngModelChange)="questionSearch = $event" name="qsearch" placeholder="Buscar por título ou enunciado...">
               </div>
               <div class="qm-filter-select">
                 <select [(ngModel)]="selectedAreaId" name="areaFilter">

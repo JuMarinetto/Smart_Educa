@@ -22,7 +22,15 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
             <span>{{overallProgress}}% concluído</span>
           </div>
           <div class="course-stats" *ngIf="topics.length > 0">
-            <span>{{completedContentIds.size}} / {{totalContents}} aulas</span>
+            <div class="stats-row">
+              <lucide-icon name="CheckCircle" size="14"></lucide-icon>
+              <span>{{completedContentIds.size}} / {{totalContents}} aulas</span>
+            </div>
+            <button class="btn-finish-course" 
+                    *ngIf="overallProgress < 100"
+                    (click)="finishCourse()">
+              Finalizar Curso
+            </button>
           </div>
         </div>
 
@@ -148,6 +156,29 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
     .lesson-item.question-nav-item { color: #f59e0b; }
     .lesson-item.question-nav-item:hover { color: #d97706; background: rgba(245, 158, 11, 0.05); }
     .lesson-item.question-nav-item.active { color: #d97706; background: rgba(245, 158, 11, 0.1); }
+    
+    .course-stats { display: flex; flex-direction: column; gap: 0.8rem; margin-top: 1rem; }
+    .stats-row { display: flex; align-items: center; gap: 6px; font-size: 0.8rem; color: var(--text-muted); }
+    .btn-finish-course {
+      width: 100%;
+      padding: 0.6rem;
+      background: rgba(16, 185, 129, 0.1);
+      color: var(--success);
+      border: 1px solid rgba(16, 185, 129, 0.2);
+      border-radius: 8px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+    .btn-finish-course:hover {
+      background: rgba(16, 185, 129, 0.2);
+      border-color: var(--success);
+    }
     
     .content-area { flex: 1; padding: 2rem; overflow-y: auto; display: flex; flex-direction: column; }
     .empty-state { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--text-muted); gap: 1rem; }
@@ -472,6 +503,24 @@ export class CoursePlayerComponent implements OnInit {
       this.selectedQuestion = null;
       await this.loadProgress();
       this.showCompletionScreen = true;
+    }
+  }
+
+  async finishCourse() {
+    if (!confirm('Deseja marcar todas as aulas como concluídas e gerar seu certificado?')) return;
+    
+    try {
+      const success = await this.progressService.completeAllCourseContent(this.studentId, this.courseId);
+      if (success) {
+        this.overallProgress = 100;
+        await this.loadProgress();
+        this.showCompletionScreen = true;
+      } else {
+        this.toastService.error('Não foi possível finalizar o curso no momento.');
+      }
+    } catch (e) {
+      console.error('Erro ao finalizar curso:', e);
+      this.toastService.error('Ocorreu um erro ao tentar concluir o curso.');
     }
   }
 

@@ -27,7 +27,7 @@ export interface TableColumn {
         <div class="table-actions">
           <div class="search-box">
             <lucide-icon name="Search" size="18"></lucide-icon>
-            <input type="text" [(ngModel)]="searchTerm" placeholder="Buscar..." (input)="filterData()">
+            <input type="text" [ngModel]="searchTerm" (ngModelChange)="searchTerm = $event; filterData()" placeholder="Buscar...">
           </div>
           
           <div class="export-buttons">
@@ -349,9 +349,24 @@ export class DataTableComponent implements OnChanges {
     if (this.searchTerm) {
       const term = this.searchTerm.toLowerCase();
       result = result.filter(item =>
-        this.columns.some(col =>
-          item[col.key] && item[col.key].toString().toLowerCase().includes(term)
-        )
+        this.columns.some(col => {
+          const val = item[col.key];
+          if (val === null || val === undefined) return false;
+
+          let searchableVal = '';
+          
+          if (typeof val === 'boolean') {
+            searchableVal = val ? 'ativo sim' : 'inativo não';
+          } else if (typeof val === 'string' && val.includes('T') && !isNaN(Date.parse(val))) {
+            // Provável data ISO
+            const date = new Date(val);
+            searchableVal = val + ' ' + date.toLocaleDateString('pt-BR');
+          } else {
+            searchableVal = val.toString();
+          }
+
+          return searchableVal.toLowerCase().includes(term);
+        })
       );
     }
 

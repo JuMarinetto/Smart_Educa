@@ -21,10 +21,14 @@ export class CourseService {
       this.supabase
         .from('class_students')
         .select(`
-          classes (
+          id,
+          classes:id_turma (
             id,
+            nome_turma,
             class_courses (
-              courses (*)
+              id,
+              id_curso,
+              courses:id_curso (*)
             )
           )
         `)
@@ -32,22 +36,34 @@ export class CourseService {
     ).pipe(
       map(res => {
         if (res.error) {
-          console.error('CRITICAL: Error in getStudentCourses:', res.error);
+          console.error('Error in getStudentCourses:', res.error);
           return [];
         }
         if (!res.data) return [];
 
         const coursesMap = new Map<string, Course>();
+        
+        // Supabase joins return structure based on relationships
         res.data.forEach((cs: any) => {
-          if (cs.classes && cs.classes.class_courses) {
-            cs.classes.class_courses.forEach((cc: any) => {
-              const course = cc.courses as Course;
+          const classData = cs.classes;
+          if (!classData) return;
+
+          const classCourses = classData.class_courses;
+          if (Array.isArray(classCourses)) {
+            classCourses.forEach((cc: any) => {
+              const course = cc.courses;
               if (course && course.status === 'Ativo') {
-                coursesMap.set(course.id, course);
+                coursesMap.set(course.id, course as Course);
               }
             });
+          } else if (classCourses && (classCourses as any).courses) {
+            const course = (classCourses as any).courses;
+            if (course && course.status === 'Ativo') {
+              coursesMap.set(course.id, course as Course);
+            }
           }
         });
+
         return Array.from(coursesMap.values());
       })
     );
@@ -122,11 +138,11 @@ export class CourseService {
   }
 
   async createCourse(course: Partial<Course>) {
-    return await this.supabase.from('courses').insert(course);
+    return await this.supabase.from('courses').insert(course).select().single();
   }
 
   async updateCourse(id: string, course: Partial<Course>) {
-    return await this.supabase.from('courses').update(course).eq('id', id);
+    return await this.supabase.from('courses').update(course).eq('id', id).select().single();
   }
 
   async deleteCourse(id: string) {
