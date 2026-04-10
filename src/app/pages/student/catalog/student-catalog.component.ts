@@ -68,6 +68,14 @@ interface CatalogCourse {
           Matriculado
           <span class="tab-count">{{ enrolledCount }}</span>
         </button>
+        <button
+          class="tab"
+          [class.active]="activeFilter === 'academic'"
+          (click)="setFilter('academic')"
+        >
+          Acadêmicos
+          <span class="tab-count">{{ academicCount }}</span>
+        </button>
       </section>
 
       <!-- Loading -->
@@ -447,7 +455,7 @@ export class StudentCatalogComponent implements OnInit {
   allCourses: CatalogCourse[] = [];
   filteredCourses: CatalogCourse[] = [];
   searchTerm = '';
-  activeFilter: 'all' | 'available' | 'enrolled' = 'all';
+  activeFilter: 'all' | 'available' | 'enrolled' | 'academic' = 'all';
   loading = true;
 
   toastMessage = '';
@@ -469,6 +477,13 @@ export class StudentCatalogComponent implements OnInit {
   }
   get enrolledCount(): number {
     return this.allCourses.filter(c => c.enrolled).length;
+  }
+  get academicCount(): number {
+    // Placeholder logic for academic courses (e.g., those with a specific tag or name part)
+    return this.allCourses.filter(c => 
+      c.titulo.toLowerCase().includes('acadêmico') || 
+      (c.tags || []).some(t => t.toLowerCase() === 'acadêmico')
+    ).length;
   }
 
   ngOnInit() {
@@ -507,7 +522,7 @@ export class StudentCatalogComponent implements OnInit {
     });
   }
 
-  setFilter(filter: 'all' | 'available' | 'enrolled') {
+  setFilter(filter: 'all' | 'available' | 'enrolled' | 'academic') {
     this.activeFilter = filter;
     this.filterCourses();
   }
@@ -532,6 +547,11 @@ export class StudentCatalogComponent implements OnInit {
       result = result.filter(c => !c.matriculado);
     } else if (this.activeFilter === 'enrolled') {
       result = result.filter(c => c.matriculado);
+    } else if (this.activeFilter === 'academic') {
+      result = result.filter(c => 
+        c.titulo.toLowerCase().includes('acadêmico') || 
+        (c.tags || []).some(t => t.toLowerCase() === 'acadêmico')
+      );
     }
 
     this.filteredCourses = result;
