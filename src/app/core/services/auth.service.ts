@@ -16,8 +16,9 @@ export class AuthService {
    * Tenta realizar o login localizando um perfil por e-mail no banco de dados.
    * Retorna o perfil se encontrado e ativo, ou null em caso de erro/inativo.
    * 
-   * OBS: Atualmente a senha é comparada em texto puro diretamente na query.
-   * Recomendação futura: Implementar hashing (BCrypt) via Edge Functions ou Auth do Supabase.
+   * ⚠️  SEGURANÇA: A senha NÃO é salva no localStorage.
+   * TODO: Migrar para Supabase Auth nativo com bcrypt para eliminar
+   *       o armazenamento de senhas em texto puro no banco.
    */
   async loginByEmail(email: string, senha: string): Promise<Profile | null> {
     const { data, error } = await this.supabase
@@ -32,9 +33,10 @@ export class AuthService {
       return null;
     }
 
-    const profile = data as Profile;
-    localStorage.setItem(this.STORAGE_KEY, JSON.stringify(profile));
-    return profile;
+    // ✅ SEGURANÇA: Remove a senha antes de persistir no storage
+    const { senha: _senha, ...safeProfile } = data as any;
+    localStorage.setItem(this.STORAGE_KEY, JSON.stringify(safeProfile));
+    return safeProfile as Profile;
   }
 
   /** Retorna o perfil atualmente logado a partir do localStorage. */

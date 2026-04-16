@@ -70,9 +70,9 @@ export class AssessmentService {
    * Envia as respostas do aluno para a RPC segura no Supabase.
    * A validação, cronometragem e cálculo de nota são feitos pelo servidor.
    */
-  async submitAssessment(attemptId: string, answers: any[]) {
+  async submitAssessment(snapshotId: string, answers: any[]) {
     const { data: result, error } = await this.supabase.rpc('submit_assessment_secure', {
-      p_attempt_id: attemptId,
+      p_snapshot_id: snapshotId,
       p_answers: answers
     });
 

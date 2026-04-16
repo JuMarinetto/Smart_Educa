@@ -149,6 +149,13 @@ import { Question, Alternative } from '../../../core/models/question.model';
             </div>
             
             <div class="form-group">
+              <label>Link do YouTube (Opcional)</label>
+              <input type="text" [(ngModel)]="contentForm.video_url" name="video_url" 
+                     placeholder="Ex: https://www.youtube.com/watch?v=...">
+              <small class="hint">Se preenchido, um botão de vídeo será exibido para os alunos.</small>
+            </div>
+            
+            <div class="form-group">
               <div class="editor-header">
                 <label>Conteúdo HTML</label>
                 <div class="editor-tabs">
@@ -370,6 +377,8 @@ export class ContentsComponent implements OnInit {
     titulo_tema: '',
     descricao: '',
     conteudo_html: '',
+    documento_url: '',
+    video_url: '',
     versao: 1,
     is_latest: true
   };
@@ -402,17 +411,17 @@ export class ContentsComponent implements OnInit {
   @ViewChild('editorTextarea') editorTextarea!: ElementRef<HTMLTextAreaElement>;
 
   columns: TableColumn[] = [
-    { key: 'titulo_tema', label: 'Título' },
-    { key: 'descricao', label: 'Descrição' },
-    { key: 'versao', label: 'Versão' },
-    { key: 'created_at', label: 'Criado em' }
+    { key: 'titulo_tema', label: 'Título', type: 'text' },
+    { key: 'descricao', label: 'Descrição', type: 'text' },
+    { key: 'versao', label: 'Versão', type: 'text' },
+    { key: 'created_at', label: 'Criado em', type: 'date' }
   ];
 
   questionColumns: TableColumn[] = [
-    { key: 'codigo', label: 'Código' },
-    { key: 'titulo', label: 'Título' },
-    { key: 'enunciado', label: 'Enunciado' },
-    { key: 'created_at', label: 'Criado em' }
+    { key: 'codigo', label: 'Código', type: 'text' },
+    { key: 'titulo', label: 'Título', type: 'text' },
+    { key: 'enunciado', label: 'Enunciado', type: 'text' },
+    { key: 'created_at', label: 'Criado em', type: 'date' }
   ];
 
   ngOnInit() {
@@ -531,6 +540,8 @@ export class ContentsComponent implements OnInit {
         titulo_tema: '',
         descricao: '',
         conteudo_html: '',
+        documento_url: '',
+        video_url: '',
         versao: 1,
         is_latest: true
       };
@@ -558,6 +569,7 @@ export class ContentsComponent implements OnInit {
       descricao: this.contentForm.descricao,
       conteudo_html: this.contentForm.conteudo_html,
       documento_url: this.contentForm.documento_url,
+      video_url: this.contentForm.video_url,
       versao: this.contentForm.versao,
       is_latest: this.contentForm.is_latest
     };

@@ -4,6 +4,7 @@ export interface StudentProgress {
   id: string;
   id_aluno: string;
   id_conteudo: string;
+  id_curso: string;
   status: ProgressStatus;
   data_primeiro_acesso?: string;
   data_ultima_visualizacao?: string;

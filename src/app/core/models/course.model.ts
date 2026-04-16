@@ -1,11 +1,19 @@
 export type CourseStatus = 'Ativo' | 'Inativo';
 
+export interface CourseAttachment {
+  name: string;
+  url: string;
+  size?: number;
+  type?: string;
+}
+
 export interface Course {
   id: string;
   id_professor: string | null;
   titulo: string;
   status: CourseStatus;
   created_at: string;
+  anexos?: CourseAttachment[];
 }
 
 export interface Topic {

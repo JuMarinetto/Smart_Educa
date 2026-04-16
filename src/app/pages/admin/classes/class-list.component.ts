@@ -225,10 +225,10 @@ export class ClassListComponent implements OnInit {
   classToDelete: any = null;
 
   columns: TableColumn[] = [
-    { key: 'nome_turma', label: 'Nome da Turma' },
-    { key: 'courses_list', label: 'Cursos' },
-    { key: 'profiles_nome', label: 'Professor' },
-    { key: 'created_at', label: 'Data de Início' }
+    { key: 'nome_turma', label: 'Nome da Turma', type: 'text' },
+    { key: 'courses_list', label: 'Cursos', type: 'text' },
+    { key: 'profiles_nome', label: 'Professor', type: 'text' },
+    { key: 'created_at', label: 'Data de Início', type: 'date' }
   ];
 
   ngOnInit() {

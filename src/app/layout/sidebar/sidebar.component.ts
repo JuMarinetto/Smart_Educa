@@ -4,6 +4,7 @@ import { RouterModule } from '@angular/router';
 import { LucideAngularModule } from 'lucide-angular';
 import { AuthService } from '../../core/services/auth.service';
 import { ThemeService } from '../../core/theme.service';
+import { BrandingService } from '../../core/services/branding.service';
 import { UiModalComponent } from '../../shared/components/ui-modal/ui-modal.component';
 import { Profile } from '../../core/models/profile.model';
 
@@ -15,8 +16,8 @@ import { Profile } from '../../core/models/profile.model';
     <aside class="sidebar">
       <div class="sidebar-top">
         <div class="logo" routerLink="/admin/dashboard">
-          <img src="assets/logo.png" alt="Logo" class="custom-logo" />
-          <p class="brand-name">SmartEduca</p>
+          <img [src]="brandingService.config().logo_url" alt="Logo" class="custom-logo" onerror="this.src='assets/logo.png'" />
+          <p class="brand-name">{{ brandingService.config().school_name }}</p>
         </div>
 
         <nav class="nav-section">
@@ -181,10 +182,7 @@ import { Profile } from '../../core/models/profile.model';
       font-size: 1.3rem;
       font-weight: 800;
       letter-spacing: 0.5px;
-      background: linear-gradient(135deg, #8b5cf6, #ec4899);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
+      color: var(--primary);
       margin: 0;
       line-height: 1;
     }
@@ -216,12 +214,13 @@ import { Profile } from '../../core/models/profile.model';
       font-weight: 500;
     }
     .nav-item:hover {
-      background: rgba(139, 92, 246, 0.08);
+      background: rgba(var(--primary-rgb), 0.08);
       color: var(--text-main);
     }
     .nav-item.active {
-      color: var(--primary);
-      background: rgba(139, 92, 246, 0.15);
+      color: white;
+      background: var(--primary);
+      box-shadow: 0 4px 12px rgba(var(--primary-rgb), 0.3);
     }
 
     .sidebar-footer {
@@ -242,13 +241,13 @@ import { Profile } from '../../core/models/profile.model';
       transition: all 0.2s;
     }
     .admin-profile:hover {
-      background: rgba(139, 92, 246, 0.08);
-      border-color: rgba(139, 92, 246, 0.2);
+      background: rgba(var(--primary-rgb), 0.08);
+      border-color: rgba(var(--primary-rgb), 0.2);
     }
     .admin-avatar {
       width: 36px; height: 36px;
       border-radius: 50%;
-      background: linear-gradient(135deg, #ec4899, #8b5cf6);
+      background: linear-gradient(135deg, var(--primary), #ec4899);
       display: flex; align-items: center; justify-content: center;
       color: white; font-weight: 700; font-size: 0.95rem; flex-shrink: 0;
     }
@@ -263,7 +262,7 @@ import { Profile } from '../../core/models/profile.model';
 
     /* ====== PROFILE MODAL ====== */
     .profile-details { display: flex; flex-direction: column; align-items: center; text-align: center; }
-    .p-avatar-large { width: 80px; height: 80px; border-radius: 50%; background: linear-gradient(135deg, #ec4899, #8b5cf6); display: flex; align-items: center; justify-content: center; color: white; font-size: 2rem; font-weight: 800; margin-bottom: 1rem; box-shadow: 0 8px 16px rgba(139, 92, 246, 0.25); }
+    .p-avatar-large { width: 80px; height: 80px; border-radius: 50%; background: linear-gradient(135deg, var(--primary), #ec4899); display: flex; align-items: center; justify-content: center; color: white; font-size: 2rem; font-weight: 800; margin-bottom: 1rem; box-shadow: 0 8px 16px rgba(var(--primary-rgb), 0.25); }
     .p-name { font-size: 1.25rem; font-weight: 700; color: var(--text-main); margin-bottom: 0.25rem; }
     .p-email { color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1.5rem; }
     .p-info-grid { display: flex; gap: 1rem; margin-bottom: 1.5rem; justify-content: center; flex-wrap: wrap; }
@@ -277,6 +276,7 @@ import { Profile } from '../../core/models/profile.model';
 })
 export class SidebarComponent implements OnInit {
   themeService = inject(ThemeService);
+  brandingService = inject(BrandingService);
   private authService = inject(AuthService);
 
   userProfile: Profile | null = null;

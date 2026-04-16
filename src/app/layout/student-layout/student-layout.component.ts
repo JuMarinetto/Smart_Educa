@@ -6,6 +6,7 @@ import { LucideAngularModule } from 'lucide-angular';
 import { AuthService } from '../../core/services/auth.service';
 import { KnowledgeService } from '../../core/services/knowledge.service';
 import { ThemeService } from '../../core/theme.service';
+import { BrandingService } from '../../core/services/branding.service';
 import { UiModalComponent } from '../../shared/components/ui-modal/ui-modal.component';
 import { Profile } from '../../core/models/profile.model';
 
@@ -19,8 +20,8 @@ import { Profile } from '../../core/models/profile.model';
       <aside class="sidebar" [class.collapsed]="sidebarCollapsed">
         <div class="sidebar-top">
           <div class="logo" (click)="sidebarCollapsed = !sidebarCollapsed">
-            <img src="assets/logo.png" alt="Logo" class="custom-logo" [class.collapsed-logo]="sidebarCollapsed" />
-            <p class="brand-name" *ngIf="!sidebarCollapsed">SmartEduca</p>
+            <img [src]="brandingService.config().logo_url" alt="Logo" class="custom-logo" [class.collapsed-logo]="sidebarCollapsed" onerror="this.src='assets/logo.png'" />
+            <p class="brand-name" *ngIf="!sidebarCollapsed">{{ brandingService.config().school_name }}</p>
           </div>
 
 
@@ -133,18 +134,18 @@ import { Profile } from '../../core/models/profile.model';
     :host {
       --st-bg: var(--bg-main);
       --st-bg-card: var(--bg-card);
-      --st-bg-card-hover: rgba(139, 92, 246, 0.05);
+      --st-bg-card-hover: rgba(var(--primary-rgb), 0.05);
       --st-sidebar: var(--bg-sidebar);
-      --st-topbar: rgba(var(--bg-main), 0.85); /* we can use default bg-main here or inherit */
+      --st-topbar: rgba(var(--bg-main), 0.85);
       --st-border: var(--border);
       --st-text: var(--text-main);
       --st-text-muted: var(--text-muted);
       --st-accent: var(--primary);
-      --st-accent-glow: rgba(139, 92, 246, 0.3);
-      --st-gradient-1: linear-gradient(135deg, #8b5cf6, #6366f1);
-      --st-gradient-2: linear-gradient(135deg, #ec4899, #8b5cf6);
-      --st-gradient-3: linear-gradient(135deg, #06b6d4, #8b5cf6);
-      --st-radius: 12px;
+      --st-accent-glow: rgba(var(--primary-rgb), 0.3);
+      --st-gradient-1: linear-gradient(135deg, var(--primary), var(--primary-hover));
+      --st-gradient-2: linear-gradient(135deg, var(--primary), #ec4899);
+      --st-gradient-3: linear-gradient(135deg, #06b6d4, var(--primary));
+      --st-radius: var(--radius);
       --st-transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
     }
     .topbar {
@@ -205,10 +206,7 @@ import { Profile } from '../../core/models/profile.model';
       font-size: 1.25rem;
       font-weight: 800;
       letter-spacing: 0.5px;
-      background: linear-gradient(135deg, #8b5cf6, #ec4899);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
+      color: var(--primary);
       margin: 0;
       line-height: 1;
       white-space: nowrap;
@@ -251,10 +249,11 @@ import { Profile } from '../../core/models/profile.model';
       white-space: nowrap;
       overflow: hidden;
     }
-    .nav-link:hover { background: rgba(139, 92, 246, 0.08); color: var(--st-text); }
+    .nav-link:hover { background: rgba(var(--primary-rgb), 0.08); color: var(--st-text); }
     .nav-link.active {
-      background: rgba(139, 92, 246, 0.15);
-      color: var(--st-accent);
+      background: var(--primary);
+      color: white;
+      box-shadow: 0 4px 12px rgba(var(--primary-rgb), 0.3);
     }
     .nav-link .badge {
       font-size: 0.6rem;
@@ -318,7 +317,7 @@ import { Profile } from '../../core/models/profile.model';
       transition: var(--st-transition);
     }
     .topbar-nav a:hover { color: var(--st-text); background: rgba(255,255,255,0.04); }
-    .topbar-nav a.active { color: var(--st-accent); background: rgba(139, 92, 246, 0.1); }
+    .topbar-nav a.active { color: white; background: var(--primary); box-shadow: 0 4px 10px rgba(var(--primary-rgb), 0.2); }
 
     .topbar-right { display: flex; align-items: center; gap: 0.75rem; }
 
@@ -355,18 +354,18 @@ import { Profile } from '../../core/models/profile.model';
       cursor: pointer;
       transition: var(--st-transition);
     }
-    .icon-btn:hover { background: rgba(139, 92, 246, 0.15); color: var(--st-accent); }
+    .icon-btn:hover { background: rgba(var(--primary-rgb), 0.15); color: var(--st-accent); }
 
     .avatar {
       width: 36px; height: 36px;
       border-radius: 50%;
-      background: var(--st-gradient-2);
+      background: var(--st-gradient-1);
       display: flex; align-items: center; justify-content: center;
       color: white;
       cursor: pointer;
       transition: var(--st-transition);
     }
-    .avatar:hover { transform: scale(1.05); box-shadow: 0 0 12px var(--st-accent-glow); }
+    .avatar:hover { transform: scale(1.05); border: 2px solid var(--primary); box-shadow: 0 0 12px var(--st-accent-glow); }
     .avatar-initials { font-weight: 700; font-size: 0.95rem; letter-spacing: 0.5px; }
 
     /* ====== CONTENT AREA ====== */
@@ -378,7 +377,7 @@ import { Profile } from '../../core/models/profile.model';
 
     /* ====== PROFILE MODAL ====== */
     .profile-details { display: flex; flex-direction: column; align-items: center; text-align: center; }
-    .p-avatar-large { width: 80px; height: 80px; border-radius: 50%; background: var(--st-gradient-2); display: flex; align-items: center; justify-content: center; color: white; font-size: 2rem; font-weight: 800; margin-bottom: 1rem; box-shadow: 0 8px 16px rgba(139, 92, 246, 0.25); }
+    .p-avatar-large { width: 80px; height: 80px; border-radius: 50%; background: var(--st-gradient-2); display: flex; align-items: center; justify-content: center; color: white; font-size: 2rem; font-weight: 800; margin-bottom: 1rem; box-shadow: 0 8px 16px rgba(var(--primary-rgb), 0.25); }
     .p-name { font-size: 1.25rem; font-weight: 700; color: var(--st-text); margin-bottom: 0.25rem; }
     .p-email { color: var(--st-text-muted); font-size: 0.9rem; margin-bottom: 1.5rem; }
     .p-info-grid { display: flex; gap: 1rem; margin-bottom: 1.5rem; justify-content: center; flex-wrap: wrap; }
@@ -400,6 +399,7 @@ export class StudentLayoutComponent implements OnInit {
   private authService = inject(AuthService);
   private knowledgeService = inject(KnowledgeService);
   themeService = inject(ThemeService);
+  brandingService = inject(BrandingService);
 
   areas: any[] = [];
   searchTerm = '';

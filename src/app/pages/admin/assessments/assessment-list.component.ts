@@ -101,6 +101,11 @@ interface ContentRule {
             </div>
 
             <div class="form-group flex-1">
+              <label>Nota de Corte <span class="required-star">*</span></label>
+              <input type="number" [(ngModel)]="assessmentForm.nota_corte" name="nota_corte" required min="0" placeholder="Ex: 6.0">
+            </div>
+
+            <div class="form-group flex-1">
               <label>Duração (minutos)</label>
               <input type="number" [(ngModel)]="assessmentForm.duracao" name="duracao" min="0" placeholder="Ex: 60">
             </div>
@@ -119,7 +124,7 @@ interface ContentRule {
               <label>Modo de Criação</label>
               <select [(ngModel)]="assessmentForm.modo_criacao" name="modo_criacao">
                 <option value="MANUAL">Manual</option>
-                <option value="IA">Inteligência Artificial (IA)</option>
+                <option value="IA">Automática (IA)</option>
               </select>
             </div>
 
@@ -128,6 +133,22 @@ interface ContentRule {
                 <input type="checkbox" [(ngModel)]="assessmentForm.cronometro" name="cronometro">
                 Ativar Cronômetro
               </label>
+            </div>
+          </div>
+
+          <!-- IA Configuration Fields -->
+          <div class="form-row border-ia" *ngIf="assessmentForm.modo_criacao === 'IA'">
+            <div class="form-group flex-1">
+              <label>Área de Conhecimento <span class="required-star">*</span></label>
+              <select [(ngModel)]="assessmentForm.id_area_conhecimento" name="id_area_conhecimento" [required]="assessmentForm.modo_criacao === 'IA'">
+                <option value="">Selecione a área...</option>
+                <option *ngFor="let area of areas" [value]="area.id">{{ area.area_conhecimento }}</option>
+              </select>
+            </div>
+
+            <div class="form-group flex-1">
+              <label>Quantidade de Questões <span class="required-star">*</span></label>
+              <input type="number" [(ngModel)]="assessmentForm.qtd_questoes" name="qtd_questoes" min="1" max="100" [required]="assessmentForm.modo_criacao === 'IA'">
             </div>
           </div>
 
@@ -270,7 +291,27 @@ interface ContentRule {
     .mt-2 { margin-top: 0.5rem; }
 
     .form-group label { font-size: 0.9rem; font-weight: 600; color: var(--text-muted); }
-    .form-group input, .form-group select { padding: 0.75rem; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-main); color: var(--text-main); }
+    .form-group input, .form-group select { 
+      padding: 0.75rem; 
+      border: 1px solid var(--border); 
+      border-radius: 8px; 
+      background: var(--bg-main); 
+      color: var(--text-main);
+      outline: none;
+      transition: all 0.2s ease;
+    }
+    .form-group select {
+      cursor: pointer;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%238b5cf6' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'%3E%3C/path%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 1rem center;
+      padding-right: 2.5rem;
+      appearance: none;
+    }
+    .form-group input:focus, .form-group select:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 4px rgba(139, 92, 246, 0.1);
+    }
     .invalid-input { border-color: #ef4444 !important; }
 
     .checkbox-group { display: flex; align-items: center; margin-top: 1.5rem; }
@@ -373,6 +414,14 @@ interface ContentRule {
       padding: 0.75rem 1rem; border-radius: 8px;
       background: var(--bg-card); border: 1px dashed var(--border);
     }
+
+    .border-ia {
+      padding: 1.25rem;
+      background: rgba(139, 92, 246, 0.05);
+      border-radius: 12px;
+      border: 1px dashed var(--primary);
+      margin-top: 0.5rem;
+    }
   `]
 })
 export class AssessmentListComponent implements OnInit {
@@ -391,7 +440,8 @@ export class AssessmentListComponent implements OnInit {
   editingAssessment: Assessment | null = null;
   assessmentForm: any = {
     nome: '', tipo: 'DIAGNOSTICA', status: 'RASCUNHO',
-    nota_total: 10, duracao: 60, modo_criacao: 'MANUAL', cronometro: true, id_curso: null
+    nota_total: 10, nota_corte: 6, duracao: 60, modo_criacao: 'MANUAL', 
+    cronometro: true, id_curso: null, id_area_conhecimento: '', qtd_questoes: 10
   };
   showError = false;
 
@@ -459,7 +509,8 @@ export class AssessmentListComponent implements OnInit {
       this.editingAssessment = null;
       this.assessmentForm = {
         nome: '', tipo: 'DIAGNOSTICA', status: 'RASCUNHO',
-        nota_total: 10, duracao: 60, modo_criacao: 'MANUAL', cronometro: true, id_curso: null
+        nota_total: 10, nota_corte: 6, duracao: 60, modo_criacao: 'MANUAL', 
+        cronometro: true, id_curso: null, id_area_conhecimento: '', qtd_questoes: 10
       };
     }
     this.isModalOpen = true;
@@ -480,15 +531,23 @@ export class AssessmentListComponent implements OnInit {
       return;
     }
 
+    if (form.modo_criacao === 'IA' && (!form.id_area_conhecimento || !form.qtd_questoes)) {
+      this.toastService.error('Para o modo IA, selecione a área e a quantidade de questões.');
+      return;
+    }
+
     const payload: Partial<Assessment> = {};
     payload.nome = form.nome;
     payload.tipo = form.tipo;
     payload.status = form.status;
     payload.nota_total = form.nota_total;
+    payload.nota_corte = form.nota_corte;
     payload.duracao = form.duracao || null;
     payload.modo_criacao = form.modo_criacao;
     payload.cronometro = form.cronometro ? true : false;
     payload.id_curso = form.id_curso || null;
+    payload.id_area_conhecimento = form.id_area_conhecimento || null;
+    payload.qtd_questoes = form.qtd_questoes || 0;
 
     try {
       if (this.editingAssessment) {
@@ -502,6 +561,8 @@ export class AssessmentListComponent implements OnInit {
         this.refresh();
         if (form.modo_criacao === 'MANUAL') {
           this.openQuestionsModal(this.editingAssessment.id, form.nome, this.editingAssessment);
+        } else if (form.modo_criacao === 'IA') {
+          await this.generateIAQuestions(this.editingAssessment.id, form.id_area_conhecimento, form.qtd_questoes);
         }
       } else {
         const response = await this.assessmentService.createAssessment(payload);
@@ -514,6 +575,8 @@ export class AssessmentListComponent implements OnInit {
         this.refresh();
         if (form.modo_criacao === 'MANUAL' && response.data) {
           this.openQuestionsModal(response.data.id, form.nome, response.data);
+        } else if (form.modo_criacao === 'IA' && response.data) {
+          await this.generateIAQuestions(response.data.id, form.id_area_conhecimento, form.qtd_questoes);
         }
       }
     } catch (error: any) {
@@ -652,6 +715,37 @@ export class AssessmentListComponent implements OnInit {
       this.toastService.error('Erro inesperado ao salvar regras.');
     } finally {
       this.savingRules = false;
+    }
+  }
+
+  async generateIAQuestions(assessmentId: string, areaId: string, quantity: number) {
+    try {
+      this.toastService.info('🤖 IA: Selecionando questões para a avaliação...');
+      
+      this.questionService.getQuestionsByArea(areaId).subscribe(async (questions) => {
+        if (!questions || questions.length === 0) {
+          this.toastService.warning('Nenhuma questão encontrada para esta área. Adicione questões manualmente.');
+          return;
+        }
+
+        // Embaralhamento (Shuffle)
+        const shuffled = [...questions].sort(() => Math.random() - 0.5);
+        
+        // Seleção da quantidade
+        const selectedIds = shuffled.slice(0, quantity).map(q => q.id);
+        
+        // Vínculo
+        const { error } = await this.assessmentService.linkQuestionsToAssessment(assessmentId, selectedIds);
+        
+        if (error) {
+          this.toastService.error('Erro ao vincular questões da IA: ' + error.message);
+        } else {
+          this.toastService.success(`IA: ${selectedIds.length} questões vinculadas com sucesso!`);
+          this.refresh();
+        }
+      });
+    } catch (err: any) {
+      this.toastService.error('Erro no processamento da IA: ' + err.message);
     }
   }
 }

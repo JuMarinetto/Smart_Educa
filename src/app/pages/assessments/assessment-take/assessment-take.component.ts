@@ -397,16 +397,17 @@ export class AssessmentTakeComponent implements OnInit, OnDestroy {
     }
     this.reviewedKey = `review_done_${this.assessmentId}`;
 
-    // Escuta eventos de navegação: detecta retorno do course-player para esta tela
+    // Verifica imediatamente se acabamos de voltar de uma revisão
+    if (localStorage.getItem(this.reviewedKey) === 'true') {
+      this.hasReviewed = true;
+      localStorage.removeItem(this.reviewedKey);
+    }
+
+    // Escuta eventos de navegação para casos de SPA (troca de rota sem reconstrução total)
     this.routerSub = this.router.events
       .pipe(filter(e => e instanceof NavigationEnd))
-      .subscribe((e: any) => {
-        const currentUrl: string = e.urlAfterRedirects || e.url || '';
-        const isBackToThisAssessment =
-          currentUrl.includes(`/student/assessment/${this.assessmentId}`) ||
-          currentUrl.includes(`/admin/assessment/${this.assessmentId}`);
-        
-        if (isBackToThisAssessment && localStorage.getItem(this.reviewedKey) === 'true') {
+      .subscribe(() => {
+        if (localStorage.getItem(this.reviewedKey) === 'true') {
           this.hasReviewed = true;
           localStorage.removeItem(this.reviewedKey);
         }
@@ -432,22 +433,35 @@ export class AssessmentTakeComponent implements OnInit, OnDestroy {
 
       if (snaps && snaps.length > 0) {
         const snap = snaps[0];
-        // Apenas APROVAÇÃO bloqueia nova tentativa definitivamente se o curso não permitir retentativas
-        if (snap.status_aprovacao === true) {
-          this.assessmentService.getAssessmentById(assessmentId).subscribe(assessment => {
-            this.assessment = assessment;
-            const notaTotal = assessment?.nota_total || 10;
-            this.relatedCourseId = assessment?.id_curso || null;
-            this.scoreObtained = snap.nota_obtida || 0;
-            this.passingScore = assessment?.nota_corte || (notaTotal * 0.6);
-            this.scorePercent = notaTotal > 0 ? (this.scoreObtained / notaTotal) * 100 : 0;
-            this.passed = true;
-            this.alreadyCompleted = true;
-            this.submitted = true;
+        
+        // Carrega o pacote completo (Assessment + Questões) para exibir os nomes dos módulos
+        forkJoin({
+          assessment: this.assessmentService.getAssessmentById(assessmentId),
+          questions: this.assessmentService.getQuestionsForAssessment(assessmentId)
+        }).subscribe(({ assessment, questions }) => {
+          if (!assessment) {
             this.loading = false;
-          });
-          return;
-        }
+            return;
+          }
+          this.assessment = assessment;
+          this.questions = questions;
+          this.relatedCourseId = assessment.id_curso || null; // Garantido
+          this.scoreObtained = snap.nota_obtida || 0;
+          this.passed = snap.status_aprovacao ?? false;
+          this.passingScore = assessment.nota_corte || (assessment.nota_total * 0.6);
+          this.scorePercent = assessment.nota_total > 0 ? (this.scoreObtained / assessment.nota_total) * 100 : 0;
+          this.alreadyCompleted = this.passed;
+          this.submitted = true;
+          this.loading = false;
+          
+          // Calcula correctCount para o template
+          this._calculateCorrectCountOffline();
+
+          if (snap.score_por_area) {
+            this._buildModuleScoresFromSnap(snap, assessment);
+          }
+        });
+        return;
       }
     }
 
@@ -477,19 +491,34 @@ export class AssessmentTakeComponent implements OnInit, OnDestroy {
     });
   }
 
-  start() {
-    this.isStarted = true;
-    this.currentIndex = 0;
-    this.answers = {};
+  async start() {
+    this.loading = true;
+    try {
+      const profile = this.authService.getLoggedProfile();
+      if (!profile) throw new Error('Usuário não autenticado');
 
-    if (this.assessment?.cronometro && this.timeLeft > 0) {
-      this.timer = setInterval(() => {
-        if (this.timeLeft > 0) { 
-          this.timeLeft--; 
-        } else { 
-          this.submit(); 
-        }
-      }, 1000);
+      // Cria o snapshot oficial no banco ANTES de começar (Fluxo Seguro)
+      const snapshot = await this.assessmentService.startAssessment(this.assessment.id, profile.id);
+      if (!snapshot) throw new Error('Erro ao iniciar tentativa de avaliação.');
+
+      this.currentSnapshotId = snapshot.id;
+      this.isStarted = true;
+      this.currentIndex = 0;
+      this.answers = {};
+
+      if (this.assessment?.cronometro && this.timeLeft > 0) {
+        this.timer = setInterval(() => {
+          if (this.timeLeft > 0) { 
+            this.timeLeft--; 
+          } else { 
+            this.submit(); 
+          }
+        }, 1000);
+      }
+    } catch (err: any) {
+      this.toastService.error(err.message || 'Erro ao iniciar avaliação.');
+    } finally {
+      this.loading = false;
     }
   }
 
@@ -552,95 +581,32 @@ export class AssessmentTakeComponent implements OnInit, OnDestroy {
 
     try {
       const profile = this.authService.getLoggedProfile();
-      const studentId = profile?.id || 'unknown';
+      if (!profile) throw new Error('Usuário não autenticado');
 
-      // 1. Salva o snapshot inicial
-      const snapshotId = await this.assessmentService.saveStudentAssessment(
-        this.assessment.id, studentId, this.answers
-      );
+      // Prepara respostas no formato esperado pela RPC
+      const formattedAnswers = Object.entries(this.answers).map(([qId, altId]) => ({
+        question_id: qId,
+        selected_alternative_id: altId
+      }));
 
-      // 2. Calcula nota geral e por conteúdo
-      this.correctCount = 0;
-      const notaTotal = this.assessment?.nota_total || 10;
-      const regras: Record<string, number> = this.assessment?.regras_nota_minima_conteudo || {};
-      const contentMap: Record<string, { nome: string; acertos: number; total: number; courseId: string | null }> = {};
+      // 1. Submissão via RPC (Cálculo Seguro no Servidor)
+      const result = await this.assessmentService.submitAssessment(this.currentSnapshotId!, formattedAnswers);
+      
+      // 2. Mapeia resultados da RPC para o estado do componente
+      this.scoreObtained = result.nota_final;
+      this.passed = result.aprovado;
+      this.scorePercent = this.assessment.nota_total > 0 ? (this.scoreObtained / this.assessment.nota_total) * 100 : 0;
+      this.passingScore = this.assessment.nota_corte || (this.assessment.nota_total * 0.6);
+      
+      // 3. Calcula acertos offline para exibição visual
+      this._calculateCorrectCountOffline();
 
-      for (const q of this.questions) {
-        const contentId: string | null = q.id_conteudo || null;
-        const contentName: string = q.contents?.titulo_tema || q.id_conteudo || 'Módulo';
-        const selectedAltId: string | undefined = this.answers[q.id];
+      // 4. Reconstrói módulos a partir do score_por_area retornado pela RPC
+      this._buildModuleScoresFromSnap(result, this.assessment);
 
-        if (contentId) {
-          if (!contentMap[contentId]) {
-            contentMap[contentId] = { 
-              nome: contentName, 
-              acertos: 0, 
-              total: 0, 
-              courseId: q.contents?.id_curso || null 
-            };
-          }
-          contentMap[contentId].total++;
-        }
-
-        if (selectedAltId && q.alternatives?.length) {
-          const correctAlt = q.alternatives.find((a: any) => a.is_correta);
-          if (correctAlt && correctAlt.id === selectedAltId) {
-            this.correctCount++;
-            if (contentId) contentMap[contentId].acertos++;
-          }
-        }
-      }
-
-      // 3. Nota geral (proporcional à nota total)
-      const totalQ = this.questions.length;
-      let rawScore = totalQ > 0 ? (this.correctCount / totalQ) * notaTotal : 0;
-      if (rawScore >= 100) rawScore = 99.99; // Limite do banco de dados NUMERIC(4,2)
-      this.scoreObtained = rawScore;
-      this.scorePercent = notaTotal > 0 ? (this.scoreObtained / notaTotal) * 100 : 0;
-      this.passingScore = this.assessment?.nota_corte || (notaTotal * 0.6);
-
-      // 4. Verifica aprovação por módulo e monta moduleScores
-      this.moduleScores = [];
-      let passedAllModules = true;
-      this.firstFailedContentId = null;
-      this.firstFailedCourseId = null;
-
-      for (const [contentId, data] of Object.entries(contentMap)) {
-        const obtidaEscala = data.total > 0 ? (data.acertos / data.total) * notaTotal : 0;
-        const requiredEscala = regras[contentId] || 0;
-        const modPassed = requiredEscala === 0 || obtidaEscala >= requiredEscala;
-
-        if (!modPassed) {
-          passedAllModules = false;
-          if (!this.firstFailedContentId) {
-            this.firstFailedContentId = contentId;
-            this.firstFailedCourseId = data.courseId;
-          }
-        }
-
-        this.moduleScores.push({
-          nome: data.nome,
-          obtained: obtidaEscala,
-          required: requiredEscala,
-          maxScore: notaTotal,
-          passed: modPassed
-        });
-      }
-
-      // Resultado Final: Passou na nota de corte GERAL E em todos os módulos com regra
-      this.passed = (this.scoreObtained >= this.passingScore) && passedAllModules;
-
-      // 5. Se falhou e não identificamos curso pelo módulo, tenta o id_curso da avaliação
-      if (!this.passed && !this.firstFailedCourseId) {
-        this.firstFailedCourseId = this.assessment.id_curso || null;
-      }
-
-      // 6. Atualiza snapshot com resultado final
-      await this.assessmentService.updateSnapshotResult(snapshotId, this.scoreObtained, this.passed);
-
-      // 7. Verifica certificado se aprovado
+      // 5. Verifica certificado se aprovado (usando a nova RPC otimizada internamente)
       if (this.passed && this.assessment?.id_curso) {
-        await this.progressService.checkAndIssueCertificate(studentId, this.assessment.id_curso);
+        await this.progressService.checkAndIssueCertificate(profile.id, this.assessment.id_curso);
       }
 
       this.submitted = true;
@@ -653,4 +619,46 @@ export class AssessmentTakeComponent implements OnInit, OnDestroy {
       this.isSubmitting = false;
     }
   }
-}
+
+  private currentSnapshotId: string | null = null;
+
+  private _calculateCorrectCountOffline() {
+    this.correctCount = 0;
+    this.questions.forEach(q => {
+      const selectedAltId = this.answers[q.id];
+      const correctAlt = q.alternatives?.find((a: any) => a.is_correta);
+      if (selectedAltId && correctAlt && selectedAltId === correctAlt.id) {
+        this.correctCount++;
+      }
+    });
+  }
+
+  private _buildModuleScoresFromSnap(snap: any, assessment: any) {
+    const scores = snap.score_por_area || {};
+    const regras = assessment.regras_nota_minima_conteudo || {};
+    
+    this.moduleScores = Object.entries(scores).map(([areaId, score]: [string, any]) => {
+      const q = this.questions.find(quest => quest.id_conteudo === areaId);
+      const nome = q?.contents?.titulo_tema || (areaId === 'null' ? 'Geral' : 'Módulo');
+      const required = regras[areaId] || 0;
+      
+      return {
+        nome,
+        obtained: score,
+        required,
+        maxScore: assessment.nota_total,
+        passed: score >= required
+      };
+    });
+
+    // Se falhou em algum módulo, guarda o ID para o botão Revisar
+    if (!this.passed) {
+      const failedMod = this.moduleScores.find(m => !m.passed);
+      if (failedMod) {
+        const q = this.questions.find(quest => (quest.contents?.titulo_tema || quest.id_conteudo) === failedMod.nome);
+        this.firstFailedContentId = q?.id_conteudo || null;
+        this.firstFailedCourseId = q?.contents?.id_curso || assessment.id_curso || null;
+      }
+    }
+  }
+}

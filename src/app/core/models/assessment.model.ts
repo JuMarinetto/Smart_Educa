@@ -1,15 +1,7 @@
-/** 
- * Tipos de avaliação:
- * - DIAGNOSTICA: Realizada no início do curso/módulo
- * - FORMATIVA: Realizada durante o processo (exercícios)
- * - SOMATIVA: Avaliação final para certificação
- */
 export type AssessmentType = 'DIAGNOSTICA' | 'FORMATIVA' | 'SOMATIVA';
 
-/** Status da avaliação no fluxo de criação administrativa. */
 export type AssessmentStatus = 'RASCUNHO' | 'PUBLICADA' | 'ENCERRADA';
 
-/** Interface principal de uma Avaliação (Template). */
 export interface Assessment {
   id: string;
   nome: string;
@@ -31,6 +23,10 @@ export interface Assessment {
   regras_nota_minima_conteudo?: Record<string, number>;
   /** Vínculo opcional com um curso. */
   id_curso?: string | null;
+  /** Área de conhecimento para geração via IA. */
+  id_area_conhecimento?: string | null;
+  /** Quantidade de questões para geração via IA. */
+  qtd_questoes?: number | null;
 }
 
 /** 
@@ -45,15 +41,15 @@ export interface AssessmentSnapshot {
   /** Contador de tentativas deste aluno para esta avaliação. */
   numero_tentativa: number;
   /** Cópia completa das questões com código, enunciado, alternativas, área e pontuação. */
-  json_questoes: any[]; 
+  json_questoes: any[];
   /** Respostas enviadas pelo aluno. */
-  json_respostas_aluno?: any[]; 
+  json_respostas_aluno?: any[];
   /** Resultado final calculado. */
   nota_obtida?: number;
   tempo_gasto_segundos?: number;
   status_aprovacao?: boolean;
   /** IDs das áreas onde o aluno não atingiu o rendimento mínimo. */
-  areas_reprovadas?: string[]; 
+  areas_reprovadas?: string[];
 }
 
 /** Modelo simplificado de participação do aluno em uma avaliação. */
@@ -67,5 +63,5 @@ export interface StudentAssessment {
   data_fim?: string;
   tempo_gasto_segundos?: number;
   /** IDs das áreas onde não atingiu a nota de corte. */
-  reprovas_por_area?: string[]; 
+  reprovas_por_area?: string[];
 }

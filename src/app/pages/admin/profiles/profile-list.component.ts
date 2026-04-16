@@ -196,11 +196,11 @@ export class ProfileListComponent implements OnInit {
   profileToDelete: Profile | null = null;
 
   columns: TableColumn[] = [
-    { key: 'nome', label: 'Nome' },
-    { key: 'email', label: 'E-mail' },
-    { key: 'perfil', label: 'Perfil' },
-    { key: 'ativo', label: 'Status' },
-    { key: 'created_at', label: 'Criado em' }
+    { key: 'nome', label: 'Nome', type: 'text' },
+    { key: 'email', label: 'E-mail', type: 'text' },
+    { key: 'perfil', label: 'Perfil', type: 'text' },
+    { key: 'ativo', label: 'Status', type: 'text' },
+    { key: 'created_at', label: 'Criado em', type: 'date' }
   ];
 
   ngOnInit() {

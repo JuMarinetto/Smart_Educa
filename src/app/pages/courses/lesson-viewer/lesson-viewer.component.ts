@@ -1,15 +1,16 @@
-import { Component, Input, Output, EventEmitter, OnInit, OnChanges, SimpleChanges, inject, ElementRef, ViewChild } from '@angular/core';
+import { Component, Input, Output, EventEmitter, OnInit, OnChanges, SimpleChanges, inject, ElementRef, ViewChild, SecurityContext } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { LucideAngularModule } from 'lucide-angular';
 import { Content } from '../../../core/models/content.model';
 import { ProgressService } from '../../../core/services/progress.service';
-import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
+import { DomSanitizer, SafeHtml, SafeResourceUrl } from '@angular/platform-browser';
 import { ToastService } from '../../../shared/components/toast/toast.service';
+import { UiModalComponent } from '../../../shared/components/ui-modal/ui-modal.component';
 
 @Component({
   selector: 'app-lesson-viewer',
   standalone: true,
-  imports: [CommonModule, LucideAngularModule],
+  imports: [CommonModule, LucideAngularModule, UiModalComponent],
   template: `
     <div class="lesson-container" #scrollContainer>
       <div class="lesson-header">
@@ -22,10 +23,20 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
 
       <div class="lesson-body" [innerHTML]="safeContent"></div>
 
-      <div class="video-placeholder" *ngIf="hasVideo">
-        <div class="mock-video-player">
-          <lucide-icon name="Play" size="48"></lucide-icon>
-          <p>Player de Vídeo</p>
+      <!-- YouTube Video Section -->
+      <div class="video-section" *ngIf="content.video_url">
+        <div class="video-card">
+          <div class="video-icon">
+            <lucide-icon name="Youtube" size="32"></lucide-icon>
+          </div>
+          <div class="video-info">
+            <h3>Vídeo Complementar</h3>
+            <p>Assista a explicação em vídeo sobre este tema.</p>
+          </div>
+          <button class="btn-video" (click)="openVideoModal()">
+            <lucide-icon name="Play" size="18"></lucide-icon>
+            Assistir Vídeo
+          </button>
         </div>
       </div>
 
@@ -35,7 +46,19 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
           {{ getButtonLabel() }}
         </button>
       </div>
+
+      <!-- Video Modal -->
+      <app-ui-modal [title]="content.titulo_tema" [(isOpen)]="isVideoModalOpen" width="900px">
+        <div class="video-modal-container" *ngIf="isVideoModalOpen">
+          <iframe [src]="getSafeVideoUrl()" 
+                  frameborder="0" 
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                  allowfullscreen>
+          </iframe>
+        </div>
+      </app-ui-modal>
     </div>
+
   `,
   styles: [`
     .lesson-container { height: 100%; overflow-y: auto; padding: 2rem; background: var(--bg-card); border-radius: var(--radius); }
@@ -50,11 +73,26 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
     .btn-primary:hover:not(:disabled) { background: var(--primary-hover); transform: translateY(-1px); }
     .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
 
+    .video-section { margin-top: 2rem; margin-bottom: 2rem; }
+    .video-card { display: flex; align-items: center; gap: 20px; padding: 1.5rem; background: var(--bg-main); border: 1px solid var(--border); border-radius: 12px; transition: all 0.2s; }
+    .video-card:hover { border-color: #ff0000; background: rgba(255, 0, 0, 0.02); }
+    .video-icon { width: 56px; height: 56px; border-radius: 50%; background: rgba(255, 0, 0, 0.1); color: #ff0000; display: flex; align-items: center; justify-content: center; }
+    .video-info { flex: 1; }
+    .video-info h3 { font-size: 1rem; margin: 0 0 4px; }
+    .video-info p { font-size: 0.85rem; color: var(--text-muted); margin: 0; }
+    .btn-video { display: flex; align-items: center; gap: 8px; background: #ff0000; color: white; padding: 0.7rem 1.25rem; border-radius: 8px; font-weight: 600; border: none; cursor: pointer; transition: all 0.2s; }
+    .btn-video:hover { background: #cc0000; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(255, 0, 0, 0.2); }
+
+    .video-modal-container { width: 100%; aspect-ratio: 16 / 9; background: #000; border-radius: 8px; overflow: hidden; }
+    .video-modal-container iframe { width: 100%; height: 100%; border: none; }
+
+
   `]
 })
 export class LessonViewerComponent implements OnInit, OnChanges {
   @Input() content!: Content;
   @Input() studentId!: string;
+  @Input() courseId!: string;
   @Input() isCompleted: boolean = false;
   @Input() isLastItem: boolean = false;
   @Output() progressUpdated = new EventEmitter<string>();
@@ -66,7 +104,7 @@ export class LessonViewerComponent implements OnInit, OnChanges {
   private toastService = inject(ToastService);
 
   safeContent: SafeHtml = '';
-  hasVideo = false;
+  isVideoModalOpen = false;
   saving = false;
 
   ngOnChanges(changes: SimpleChanges) {
@@ -76,6 +114,7 @@ export class LessonViewerComponent implements OnInit, OnChanges {
         this.scrollContainer.nativeElement.scrollTop = 0;
       }
       this.saving = false;
+      this.isVideoModalOpen = false;
       this.initContent();
     }
   }
@@ -85,19 +124,44 @@ export class LessonViewerComponent implements OnInit, OnChanges {
   }
 
   private initContent() {
-    this.safeContent = this.sanitizer.bypassSecurityTrustHtml(this.content?.conteudo_html || '');
-    this.hasVideo = this.content?.conteudo_html?.includes('iframe') || false;
+    const raw = this.content?.conteudo_html || '';
+    // ✅ SEGURANÇA: Usa sanitização nativa do Angular em vez de bypass total.
+    // O DomSanitizer.sanitize() remove tags e atributos perigosos (script, onerror, etc.)
+    // enquanto preserva HTML de formatação (p, h1-h6, strong, em, ul, li, etc.)
+    const sanitized = this.sanitizer.sanitize(SecurityContext.HTML, raw) ?? '';
+    this.safeContent = this.sanitizer.bypassSecurityTrustHtml(sanitized);
+  }
+
+  openVideoModal() {
+    this.isVideoModalOpen = true;
+  }
+
+  getSafeVideoUrl(): SafeResourceUrl {
+    const url = this.content?.video_url || '';
+    let videoId = '';
+
+    if (url.includes('v=')) {
+      videoId = url.split('v=')[1]?.split('&')[0];
+    } else if (url.includes('youtu.be/')) {
+      videoId = url.split('youtu.be/')[1]?.split('?')[0];
+    } else if (url.includes('embed/')) {
+      videoId = url.split('embed/')[1]?.split('?')[0];
+    }
+
+    const embedUrl = `https://www.youtube.com/embed/${videoId}?autoplay=1`;
+    return this.sanitizer.bypassSecurityTrustResourceUrl(embedUrl);
   }
 
   async completeAndNext() {
     if (this.saving) return;
 
-    if (!this.isCompleted && this.studentId && this.content) {
+    if (!this.isCompleted && this.studentId && this.content && this.courseId) {
       this.saving = true;
       try {
         const result = await this.progressService.updateProgress({
           id_aluno: this.studentId,
           id_conteudo: this.content.id,
+          id_curso: this.courseId,
           status: 'CONCLUIDO',
           porcentagem_concluida: 100
         });

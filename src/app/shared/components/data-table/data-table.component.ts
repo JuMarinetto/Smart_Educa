@@ -4,7 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { LucideAngularModule, Download, FileText, ChevronUp, ChevronDown, Search, X, Edit, Trash } from 'lucide-angular';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import * as XLSX from 'xlsx';
+import * as ExcelJS from 'exceljs';
 import { MaskSensitivePipe } from '../../../core/pipes/mask-sensitive.pipe';
 import { DateFormatPipe } from '../../../core/pipes/date-format.pipe';
 import { ReportsService } from '../../../core/services/reports.service';
@@ -12,6 +12,7 @@ import { ReportsService } from '../../../core/services/reports.service';
 export interface TableColumn {
   key: string;
   label: string;
+  type?: 'text' | 'date' | 'mask' | 'currency';
 }
 
 @Component({
@@ -57,7 +58,11 @@ export interface TableColumn {
           <tbody>
             <tr *ngFor="let row of paginatedData">
               <td *ngFor="let col of columns">
-                {{ row[col.key] | dateFormat | maskSensitive:col.key }}
+                <ng-container [ngSwitch]="col.type">
+                  <span *ngSwitchCase="'date'">{{ row[col.key] | dateFormat }}</span>
+                  <span *ngSwitchCase="'mask'">{{ row[col.key] | maskSensitive:col.key }}</span>
+                  <span *ngSwitchDefault>{{ row[col.key] }}</span>
+                </ng-container>
               </td>
               <td class="actions-cell" *ngIf="showActions">
                 <button class="btn-action edit" (click)="edit.emit(row)" title="Editar">
@@ -465,7 +470,7 @@ export class DataTableComponent implements OnChanges {
     doc.save(filename);
   }
 
-  exportExcel() {
+  async exportExcel() {
     // Map data to Portuguese labels for Excel headers
     const excelData = this.filteredData.map(row => {
       const formattedRow: any = {};
@@ -475,11 +480,42 @@ export class DataTableComponent implements OnChanges {
       return formattedRow;
     });
 
-    const ws: XLSX.WorkSheet = XLSX.utils.json_to_sheet(excelData);
-    const wb: XLSX.WorkBook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Relatório');
+    // Create workbook and worksheet
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Relatório');
+    
+    // Add columns with headers
+    if (this.columns.length > 0) {
+      worksheet.columns = this.columns.map(col => ({
+        header: col.label,
+        key: col.label,
+        width: 20
+      }));
+
+      // Add data rows
+      excelData.forEach(data => {
+        worksheet.addRow(data);
+      });
+      
+      // Styling the header
+      worksheet.getRow(1).font = { bold: true };
+      worksheet.getRow(1).fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFE9E9E9' }
+      };
+    }
 
     const filename = this.title ? `${this.title.replace(/ /g, '_')}.xlsx` : 'relatorio.xlsx';
-    XLSX.writeFile(wb, filename);
+    
+    // Generate buffer and trigger download
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    window.URL.revokeObjectURL(url);
   }
 }

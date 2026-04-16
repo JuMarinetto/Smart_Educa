@@ -1,7 +1,8 @@
-import { Component } from '@angular/core';
+import { Component, inject, OnInit } from '@angular/core';
 import { RouterModule } from '@angular/router';
 import { SidebarComponent } from './layout/sidebar/sidebar.component';
 import { ToastComponent } from './shared/components/toast/toast.component';
+import { BrandingService } from './core/services/branding.service';
 
 @Component({
   selector: 'app-root',
@@ -22,4 +23,10 @@ import { ToastComponent } from './shared/components/toast/toast.component';
     }
   `]
 })
-export class AppComponent { }
+export class AppComponent implements OnInit {
+  private brandingService = inject(BrandingService);
+
+  async ngOnInit() {
+    await this.brandingService.loadBranding();
+  }
+}

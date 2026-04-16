@@ -115,6 +115,7 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
     .delete-confirm { text-align: center; }
     .delete-confirm p { margin-bottom: 1rem; color: var(--text-main); }
     .warning-text { font-size: 0.85rem; color: var(--danger) !important; font-weight: 500; }
+
   `]
 })
 export class CourseListComponent implements OnInit {
@@ -138,9 +139,9 @@ export class CourseListComponent implements OnInit {
   showError = false;
 
   columns: TableColumn[] = [
-    { key: 'titulo', label: 'Título' },
-    { key: 'status', label: 'Status' },
-    { key: 'created_at', label: 'Data de Criação' }
+    { key: 'titulo', label: 'Título', type: 'text' },
+    { key: 'status', label: 'Status', type: 'text' },
+    { key: 'created_at', label: 'Data de Criação', type: 'date' }
   ];
 
   ngOnInit() {
@@ -181,7 +182,6 @@ export class CourseListComponent implements OnInit {
     if (this.editingCourse) {
       this.router.navigate(['/admin/course-builder'], { queryParams: { id: this.editingCourse.id } });
     } else {
-      // If it's a new course, we must save it first to get an ID
       if (!this.courseForm.titulo) {
         this.showError = true;
         this.toastService.warning('Informe o título do curso primeiro.');

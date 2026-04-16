@@ -9,9 +9,11 @@ import { CourseService } from '../../../../core/services/course.service';
 import { QuestionService } from '../../../../core/services/question.service';
 import { Content } from '../../../../core/models/content.model';
 import { Question } from '../../../../core/models/question.model';
-import { KnowledgeArea } from '../../../../core/models/knowledge-area.model';
+import { Course, CourseAttachment } from '../../../../core/models/course.model';
 import { ToastService } from '../../../../shared/components/toast/toast.service';
 import { FormsModule } from '@angular/forms';
+import { UiModalComponent } from '../../../../shared/components/ui-modal/ui-modal.component';
+import { KnowledgeArea } from '../../../../core/models/knowledge-area.model';
 
 export interface CourseItem {
   tipo: 'conteudo' | 'questao';
@@ -22,7 +24,7 @@ export interface CourseItem {
 @Component({
   selector: 'app-course-builder',
   standalone: true,
-  imports: [CommonModule, DragDropModule, LucideAngularModule, UiCardComponent, FormsModule],
+  imports: [CommonModule, DragDropModule, LucideAngularModule, UiCardComponent, FormsModule, UiModalComponent],
   template: `
     <div class="builder-container">
       <header class="builder-header">
@@ -30,10 +32,16 @@ export interface CourseItem {
           <h1>Construtor de Curso <span *ngIf="courseTitle">- {{ courseTitle }}</span></h1>
           <p>Organize o curso em módulos e arraste conteúdos e questões da biblioteca.</p>
         </div>
-        <button class="btn-add-module" (click)="addModule()">
-          <lucide-icon name="Plus" size="18"></lucide-icon>
-          Adicionar Módulo / Seção
-        </button>
+        <div class="header-right">
+          <button class="btn-attachments" (click)="isAttachmentsModalOpen = true">
+            <lucide-icon name="Paperclip" size="18"></lucide-icon>
+            Anexos do Curso
+          </button>
+          <button class="btn-add-module" (click)="addModule()">
+            <lucide-icon name="Plus" size="18"></lucide-icon>
+            Adicionar Módulo / Seção
+          </button>
+        </div>
       </header>
 
       <div class="builder-grid" cdkDropListGroup>
@@ -219,10 +227,50 @@ export interface CourseItem {
         </button>
       </div>
     </div>
+
+    <!-- Modals -->
+    <app-ui-modal title="Anexos do Curso" [(isOpen)]="isAttachmentsModalOpen" width="550px">
+      <div class="attachments-modal-content">
+        <p class="description">Gerencie os materiais de apoio que os alunos poderão baixar.</p>
+        
+        <div class="attachments-list" *ngIf="anexos.length > 0">
+          <div class="attachment-item" *ngFor="let file of anexos">
+            <lucide-icon name="File" size="18" class="file-icon"></lucide-icon>
+            <div class="file-info">
+              <span class="file-name" title="{{file.name}}">{{ file.name }}</span>
+              <span class="file-meta" *ngIf="file.size">{{ (file.size / 1024 / 1024) | number:'1.1-1' }} MB</span>
+            </div>
+            <div class="file-actions">
+              <a [href]="file.url" target="_blank" class="btn-icon" title="Baixar">
+                <lucide-icon name="Download" size="16"></lucide-icon>
+              </a>
+              <button type="button" class="btn-icon delete" (click)="removeAttachment(file)" title="Excluir">
+                <lucide-icon name="Trash2" size="16"></lucide-icon>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="empty-attachments" *ngIf="anexos.length === 0">
+          <lucide-icon name="Info" size="32"></lucide-icon>
+          <p>Nenhum anexo adicionado a este curso.</p>
+        </div>
+
+        <div class="upload-section">
+          <input type="file" #fileInput (change)="onFileSelected($event)" style="display: none">
+          <button type="button" class="btn-upload" (click)="fileInput.click()" [disabled]="isUploading">
+            <lucide-icon [name]="isUploading ? 'Loader2' : 'Upload'" size="18" [class.spin]="isUploading"></lucide-icon>
+            {{ isUploading ? 'Enviando Arquivo...' : 'Clique para Anexar Arquivo' }}
+          </button>
+          <p class="upload-hint">Formatos suportados: PDF, DOCX, ZIP, MP4, Imagens (Máx 10MB)</p>
+        </div>
+      </div>
+    </app-ui-modal>
   `,
   styles: [`
     .builder-container { padding: 2rem; margin-left: 280px; }
     .builder-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; }
+    .header-right { display: flex; gap: 1rem; align-items: center; }
     .builder-grid { display: grid; grid-template-columns: 1.2fr 0.8fr; gap: 2rem; align-items: flex-start; }
     
     .column-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
@@ -230,6 +278,9 @@ export interface CourseItem {
     
     .btn-add-module { background: var(--bg-card); border: 1px solid var(--primary); color: var(--primary); padding: 0.6rem 1.2rem; border-radius: 8px; cursor: pointer; display: flex; align-items: center; gap: 8px; font-weight: 600; transition: all 0.2s; }
     .btn-add-module:hover { background: var(--primary); color: white; }
+
+    .btn-attachments { background: rgba(37, 99, 235, 0.05); border: 1px dashed var(--primary); color: var(--primary); padding: 0.6rem 1.2rem; border-radius: 8px; cursor: pointer; display: flex; align-items: center; gap: 8px; font-weight: 600; transition: all 0.2s; }
+    .btn-attachments:hover { background: rgba(37, 99, 235, 0.1); border-style: solid; }
 
     .modules-container { display: flex; flex-direction: column; gap: 1.5rem; }
     .module-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 1.25rem; }
@@ -317,7 +368,37 @@ export interface CourseItem {
     @media (max-width: 1024px) {
       .builder-container { margin-left: 0; padding: 1rem; }
       .builder-grid { grid-template-columns: 1fr; }
+      .header-right { flex-direction: column; width: 100%; gap: 0.5rem; }
+      .btn-add-module, .btn-attachments { width: 100%; justify-content: center; }
     }
+
+    /* Modal Styles */
+    .attachments-modal-content { display: flex; flex-direction: column; gap: 1.5rem; }
+    .description { color: var(--text-muted); font-size: 0.9rem; margin-bottom: 0.5rem; }
+    
+    .attachments-list { display: flex; flex-direction: column; gap: 0.75rem; max-height: 300px; overflow-y: auto; padding-right: 0.5rem; }
+    .attachment-item { display: flex; align-items: center; gap: 12px; padding: 0.75rem 1rem; background: var(--bg-main); border: 1px solid var(--border); border-radius: 10px; }
+    .file-icon { color: var(--primary); opacity: 0.7; }
+    .file-info { flex: 1; display: flex; flex-direction: column; gap: 2px; overflow: hidden; }
+    .file-name { font-size: 0.85rem; font-weight: 600; color: var(--text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .file-meta { font-size: 0.7rem; color: var(--text-muted); }
+    
+    .file-actions { display: flex; gap: 4px; }
+    .btn-icon { background: none; border: none; padding: 6px; border-radius: 6px; cursor: pointer; color: var(--text-muted); display: flex; align-items: center; justify-content: center; transition: all 0.2s; }
+    .btn-icon:hover { background: rgba(0,0,0,0.05); color: var(--primary); }
+    .btn-icon.delete:hover { color: var(--danger); background: rgba(239, 68, 68, 0.1); }
+
+    .empty-attachments { text-align: center; padding: 2rem; background: var(--bg-main); border-radius: 12px; border: 1px dashed var(--border); color: var(--text-muted); opacity: 0.7; display: flex; flex-direction: column; align-items: center; gap: 10px; }
+    .empty-attachments p { font-size: 0.85rem; }
+
+    .upload-section { margin-top: 1rem; padding: 1.5rem; border: 2px dashed var(--border); border-radius: 12px; text-align: center; background: rgba(37, 99, 235, 0.02); }
+    .btn-upload { background: var(--primary); color: white; padding: 0.8rem 1.5rem; border-radius: 8px; font-weight: 600; border: none; cursor: pointer; display: flex; align-items: center; gap: 10px; margin: 0 auto 1rem; transition: all 0.2s; }
+    .btn-upload:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2); }
+    .btn-upload:disabled { opacity: 0.6; cursor: not-allowed; }
+    .upload-hint { font-size: 0.75rem; color: var(--text-muted); }
+    
+    .spin { animation: spin 1s linear infinite; }
+    @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
   `]
 })
 export class CourseBuilderComponent implements OnInit {
@@ -334,20 +415,23 @@ export class CourseBuilderComponent implements OnInit {
   libraryQuestions: Question[] = [];
   courseModules: { id?: string, nome: string, items: CourseItem[] }[] = [];
   filteredLibrary: Content[] = [];
-  
+
   areas: KnowledgeArea[] = [];
   groupedLibrary: { areaId: string, areaName: string, contents: Content[] }[] = [];
   groupedQuestions: { areaId: string, areaName: string, questions: Question[] }[] = [];
   expandedAreas: Set<string> = new Set();
   expandedQuestionAreas: Set<string> = new Set();
-  
+
   activeLibraryTab: 'conteudos' | 'questoes' = 'conteudos';
   searchTerm = '';
-  
+
   courseId: string | null = null;
   courseTitle: string = '';
+  anexos: CourseAttachment[] = [];
   isMobile = false;
   isSaving = false;
+  isUploading = false;
+  isAttachmentsModalOpen = false;
 
   @HostListener('window:resize')
   onResize() {
@@ -356,17 +440,17 @@ export class CourseBuilderComponent implements OnInit {
 
   ngOnInit() {
     this.onResize();
-    
+
     // Fetch areas first
     this.knowledgeService.getAreas().subscribe(areas => {
       this.areas = areas;
-      
+
       // Then fetch contents
       this.knowledgeService.getContentsByArea('').subscribe(data => {
         this.allContents = data;
         this.filteredLibrary = [...data];
         this.updateLibrary();
-        
+
         // Expand areas that have content initially
         this.groupedLibrary.forEach(g => {
           if (g.contents.length > 0) this.expandedAreas.add(g.areaId);
@@ -396,6 +480,7 @@ export class CourseBuilderComponent implements OnInit {
     this.courseService.getCourseStructure(id).subscribe(topics => {
       if (topics.length > 0 && topics[0].courses) {
         this.courseTitle = topics[0].courses.titulo;
+        this.anexos = topics[0].courses.anexos || [];
       }
 
       // Build modules with unified items
@@ -418,7 +503,7 @@ export class CourseBuilderComponent implements OnInit {
       if (this.courseModules.length === 0) {
         this.addModule();
       }
-      
+
       this.updateLibrary();
       this.updateQuestionLibrary();
     });
@@ -435,21 +520,21 @@ export class CourseBuilderComponent implements OnInit {
         }
       });
     });
-    
+
     this.libraryContents = this.allContents.filter(c => !courseContentIds.has(c.id));
     this.applyContentFilters(this.searchTerm);
   }
 
   applyContentFilters(searchTerm: string = '') {
     const term = searchTerm.toLowerCase();
-    
-    const filtered = this.libraryContents.filter(c => 
-      c.titulo_tema.toLowerCase().includes(term) || 
+
+    const filtered = this.libraryContents.filter(c =>
+      c.titulo_tema.toLowerCase().includes(term) ||
       c.descricao?.toLowerCase().includes(term)
     );
 
     const groupsMap = new Map<string, { areaId: string, areaName: string, contents: Content[] }>();
-    
+
     this.areas.forEach(a => {
       if (a.permite_conteudo) {
         groupsMap.set(a.id, { areaId: a.id, areaName: a.area_conhecimento, contents: [] });
@@ -593,7 +678,7 @@ export class CourseBuilderComponent implements OnInit {
 
   addContentToFirstModule(item: Content) {
     if (this.courseModules.length > 0) {
-      const exists = this.courseModules.some(mod => 
+      const exists = this.courseModules.some(mod =>
         mod.items.some(i => i.tipo === 'conteudo' && i.content?.id === item.id)
       );
       if (!exists) {
@@ -619,7 +704,7 @@ export class CourseBuilderComponent implements OnInit {
     if (this.courseModules.length > 0) {
       let added = 0;
       group.contents.forEach((item: Content) => {
-        const exists = this.courseModules.some(mod => 
+        const exists = this.courseModules.some(mod =>
           mod.items.some(i => i.tipo === 'conteudo' && i.content?.id === item.id)
         );
         if (!exists) {
@@ -763,5 +848,61 @@ export class CourseBuilderComponent implements OnInit {
 
   goBack() {
     this.router.navigate(['/admin/courses']);
+  }
+
+  // ---- Attachment Actions ----
+
+  async onFileSelected(event: any) {
+    const file = event.target.files[0];
+    if (!file || !this.courseId) return;
+
+    if (file.size > 10 * 1024 * 1024) {
+      this.toastService.warning('Arquivo muito grande. O limite é 10MB.');
+      return;
+    }
+
+    this.isUploading = true;
+    try {
+      const result: any = await this.courseService.uploadAttachment(
+        this.courseId,
+        file,
+        this.anexos
+      );
+
+      if (result.error) {
+        this.toastService.error('Erro ao enviar arquivo: ' + result.error.message);
+      } else {
+        this.toastService.success('Arquivo enviado com sucesso!');
+        this.anexos = result.data.anexos;
+      }
+    } catch (err) {
+      console.error('Erro no upload:', err);
+      this.toastService.error('Erro inesperado no upload.');
+    } finally {
+      this.isUploading = false;
+      event.target.value = ''; // Reset input
+    }
+  }
+
+  async removeAttachment(attachment: CourseAttachment) {
+    if (!this.courseId || !confirm(`Deseja remover o anexo "${attachment.name}"?`)) return;
+
+    try {
+      const result: any = await this.courseService.deleteAttachment(
+        this.courseId,
+        attachment,
+        this.anexos
+      );
+
+      if (result.error) {
+        this.toastService.error('Erro ao remover arquivo: ' + result.error.message);
+      } else {
+        this.toastService.success('Anexo removido!');
+        this.anexos = result.data.anexos;
+      }
+    } catch (err) {
+      console.error('Erro ao remover:', err);
+      this.toastService.error('Erro ao remover anexo.');
+    }
   }
 }

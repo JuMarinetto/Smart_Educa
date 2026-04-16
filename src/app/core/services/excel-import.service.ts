@@ -1,5 +1,5 @@
 import { Injectable, inject } from '@angular/core';
-import * as XLSX from 'xlsx';
+import * as ExcelJS from 'exceljs';
 import { SupabaseService } from './supabase.service';
 
 export interface ImportRow {
@@ -27,35 +27,61 @@ export class ExcelImportService {
   private supabase = this.supabaseService.client;
 
   /** Lê o arquivo Excel e retorna os dados das abas como arrays de objetos */
-  parseFile(file: File): Promise<ExcelImportData> {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = (e: any) => {
-        try {
-          const data = new Uint8Array(e.target.result);
-          const workbook = XLSX.read(data, { type: 'array' });
+  /** Lê o arquivo Excel e retorna os dados das abas como arrays de objetos */
+  async parseFile(file: File): Promise<ExcelImportData> {
+    const workbook = new ExcelJS.Workbook();
+    const arrayBuffer = await file.arrayBuffer();
+    await workbook.xlsx.load(arrayBuffer);
 
-          const getSheetData = (sheetName: string): ImportRow[] => {
-            const sheet = workbook.Sheets[sheetName];
-            if (!sheet) return [];
-            return XLSX.utils.sheet_to_json(sheet, { defval: '' });
-          };
+    const getSheetData = (sheetName: string): ImportRow[] => {
+      const worksheet = workbook.getWorksheet(sheetName);
+      if (!worksheet) return [];
 
-          resolve({
-            cursos: getSheetData('Cursos'),
-            modulos: getSheetData('Modulos'),
-            conteudos: getSheetData('Conteudos'),
-            questoes: getSheetData('Questoes'),
-            turmas: getSheetData('Turmas'),
-            alunos: getSheetData('Alunos'),
-          });
-        } catch (err) {
-          reject(err);
+      const data: ImportRow[] = [];
+      const headerRow = worksheet.getRow(1);
+      const headers: string[] = [];
+      
+      headerRow.eachCell((cell, colNumber) => {
+        headers[colNumber] = cell.text.trim();
+      });
+
+      worksheet.eachRow((row, rowNumber) => {
+        if (rowNumber === 1) return; // Skip header
+        const rowData: ImportRow = {};
+        row.eachCell((cell, colNumber) => {
+          const header = headers[colNumber];
+          if (header) {
+            let value = cell.value;
+            
+            // Basic sanitization for strings to prevent script injection
+            if (typeof value === 'string') {
+              value = value.replace(/<script\b[^>]*>([\s\S]*?)<\/script>/gim, '')
+                           .replace(/[<>]/g, (m) => ({ '<': '&lt;', '>': '&gt;' }[m as '<' | '>']));
+            }
+
+            rowData[header] = value;
+            // Fallback for different naming conventions seen in the service
+            const lowerHeader = header.toLowerCase();
+            if (lowerHeader === 'titulo' || lowerHeader === 'título') rowData['titulo'] = value;
+            if (lowerHeader === 'descrição' || lowerHeader === 'descricao') rowData['descricao'] = value;
+          }
+        });
+        if (Object.keys(rowData).length > 0) {
+          data.push(rowData);
         }
-      };
-      reader.onerror = reject;
-      reader.readAsArrayBuffer(file);
-    });
+      });
+
+      return data;
+    };
+
+    return {
+      cursos: getSheetData('Cursos'),
+      modulos: getSheetData('Modulos'),
+      conteudos: getSheetData('Conteudos'),
+      questoes: getSheetData('Questoes'),
+      turmas: getSheetData('Turmas'),
+      alunos: getSheetData('Alunos'),
+    };
   }
 
   /** Importa os dados para o Supabase e retorna um log de resultados */
@@ -477,7 +503,7 @@ export class ExcelImportService {
         }
 
         alunoId = newProfile.id;
-        log.push({ success: true, type: 'success', message: `✅ Aluno criado: "${nome}" — login: ${email} / senha: ${senha}` });
+        log.push({ success: true, type: 'success', message: `✅ Aluno criado: "${nome}" — login: ${email} (senha definida internamente)` });
       }
 
       // Matricular na turma se informado
@@ -600,26 +626,37 @@ export class ExcelImportService {
   }
 
   /** Gera e baixa uma planilha modelo com exemplos */
-  downloadTemplate(): void {
-    const wb = XLSX.utils.book_new();
+  /** Gera e baixa uma planilha modelo com exemplos */
+  async downloadTemplate(): Promise<void> {
+    const workbook = new ExcelJS.Workbook();
+
+    // Helper para adicionar abas com dados
+    const addSheet = (name: string, data: any[]) => {
+      const sheet = workbook.addWorksheet(name);
+      if (data.length > 0) {
+        const columns = Object.keys(data[0]).map(key => ({ header: key, key }));
+        sheet.columns = columns;
+        sheet.addRows(data);
+        sheet.getRow(1).font = { bold: true };
+      }
+    };
 
     // ── Aba Cursos ──────────────────────────────────────────────────────────
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet([
+    addSheet('Cursos', [
       { titulo: 'Formação em IA Aplicada', status: 'Ativo' },
       { titulo: 'Marketing Digital Avançado', status: 'Ativo' },
-    ]), 'Cursos');
+    ]);
 
     // ── Aba Módulos ─────────────────────────────────────────────────────────
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet([
+    addSheet('Modulos', [
       { curso_titulo: 'Formação em IA Aplicada', nome_modulo: 'Introdução à IA', ordem: 1 },
       { curso_titulo: 'Formação em IA Aplicada', nome_modulo: 'Machine Learning Básico', ordem: 2 },
       { curso_titulo: 'Marketing Digital Avançado', nome_modulo: 'SEO e SEM', ordem: 1 },
       { curso_titulo: 'Marketing Digital Avançado', nome_modulo: 'Mídias Sociais', ordem: 2 },
-    ]), 'Modulos');
+    ]);
 
     // ── Aba Conteúdos ───────────────────────────────────────────────────────
-    // Colunas curso_titulo + modulo são opcionais; se preenchidas, vinculam o conteúdo ao módulo
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet([
+    addSheet('Conteudos', [
       {
         titulo_tema: 'O que é Inteligência Artificial?',
         descricao: 'Visão geral sobre IA e suas aplicações.',
@@ -638,12 +675,11 @@ export class ExcelImportService {
         modulo: 'Machine Learning Básico',
         ordem_item: 1,
       },
-    ]), 'Conteudos');
+    ]);
 
     // ── Aba Questões ────────────────────────────────────────────────────────
-    // conteudo = título exato do conteúdo ao qual a questão será vinculada (opcional)
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet([
-    {
+    addSheet('Questoes', [
+      {
         codigo: 'Q001',
         titulo: 'Linguagem mais usada em IA',
         enunciado: 'Qual linguagem de programação é mais usada em projetos de IA?',
@@ -667,36 +703,29 @@ export class ExcelImportService {
         area_conhecimento: 'Tecnologia',
         conteudo: 'Redes Neurais Artificiais',
       },
-    ]), 'Questoes');
+    ]);
 
     // ── Aba Turmas ─────────────────────────────────────────────────────────────
-    // curso_titulo é opcional — se preenchido, vincula a turma ao curso
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet([
+    addSheet('Turmas', [
       { nome_turma: 'Turma IA 2025', curso_titulo: 'Formação em IA Aplicada' },
       { nome_turma: 'Turma Marketing 2025', curso_titulo: 'Marketing Digital Avançado' },
-    ]), 'Turmas');
+    ]);
 
     // ── Aba Alunos ─────────────────────────────────────────────────────────────
-    // turma = nome exato da turma (aba Turmas ou já existente no banco)
-    // senha = se vazio, será gerada automaticamente e exibida no log
-    // cpf e telefone são opcionais
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet([
-      { codigo: 'MAT001', nome: 'Maria Silva',   email: 'maria.silva@email.com',   senha: 'Senha@123', turma: 'Turma IA 2025',         cpf: '123.456.789-00', telefone: '(11) 99999-0001' },
-      { codigo: 'MAT002', nome: 'João Oliveira', email: 'joao.oliveira@email.com', senha: 'Senha@456', turma: 'Turma IA 2025',         cpf: '',               telefone: '' },
-      { codigo: '',       nome: 'Ana Costa',     email: 'ana.costa@email.com',     senha: '',          turma: 'Turma Marketing 2025',  cpf: '',               telefone: '' },
-    ]), 'Alunos');
+    addSheet('Alunos', [
+      { codigo: 'MAT001', nome: 'Maria Silva', email: 'maria.silva@email.com', senha: 'Senha@123', turma: 'Turma IA 2025', cpf: '123.456.789-00', telefone: '(11) 99999-0001' },
+      { codigo: 'MAT002', nome: 'João Oliveira', email: 'joao.oliveira@email.com', senha: 'Senha@456', turma: 'Turma IA 2025', cpf: '', telefone: '' },
+      { codigo: '', nome: 'Ana Costa', email: 'ana.costa@email.com', senha: '', turma: 'Turma Marketing 2025', cpf: '', telefone: '' },
+    ]);
 
-    // Gera o arquivo como ArrayBuffer e força download com o nome correto
-    const wbArrayBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
-    const blob = new Blob([wbArrayBuffer], {
-      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-    });
+    // Gera o buffer e dispara o download
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
     a.download = 'modelo_importacao.xlsx';
     a.click();
     URL.revokeObjectURL(url);
-
   }
 }

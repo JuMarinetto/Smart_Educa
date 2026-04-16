@@ -24,7 +24,7 @@
   --transition: all 0.2s ease;
 }
 
-[data-theme='light'] {
+html[data-theme='light'] {
   --bg-main: #f4f4f9;
   --bg-card: #ffffff;
   --bg-sidebar: #ffffff;

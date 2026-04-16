@@ -34,7 +34,18 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
           </div>
         </div>
 
-        <nav class="topics-nav">
+        <div class="sidebar-tabs">
+          <button [class.active]="activeSidebarTab === 'aulas'" (click)="activeSidebarTab = 'aulas'">
+            <lucide-icon name="List" size="14"></lucide-icon>
+            Aulas
+          </button>
+          <button [class.active]="activeSidebarTab === 'recursos'" (click)="activeSidebarTab = 'recursos'">
+            <lucide-icon name="Folder" size="14"></lucide-icon>
+            Recursos
+          </button>
+        </div>
+
+        <nav class="topics-nav" *ngIf="activeSidebarTab === 'aulas'">
           <div *ngFor="let topic of topics; let i = index" class="topic-group">
             <div class="topic-header" [class.locked]="isTopicLocked(i)">
               <lucide-icon [name]="isTopicLocked(i) ? 'Lock' : 'ChevronDown'" size="16"></lucide-icon>
@@ -53,6 +64,23 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
             </div>
           </div>
         </nav>
+
+        <div class="resources-tab" *ngIf="activeSidebarTab === 'recursos'">
+          <div class="empty-resources" *ngIf="!courseAttachments || courseAttachments.length === 0">
+            <lucide-icon name="Info" size="32"></lucide-icon>
+            <p>Nenhum material de apoio disponível para este curso.</p>
+          </div>
+          <div class="resource-list" *ngIf="courseAttachments && courseAttachments.length > 0">
+            <a *ngFor="let res of courseAttachments" [href]="res.url" target="_blank" class="resource-item">
+              <lucide-icon name="FileText" size="18"></lucide-icon>
+              <div class="res-info">
+                <span class="res-name">{{ res.name }}</span>
+                <span class="res-meta" *ngIf="res.size">{{ (res.size / 1024 / 1024) | number:'1.1-1' }} MB</span>
+              </div>
+              <lucide-icon name="Download" size="16" class="dl-icon"></lucide-icon>
+            </a>
+          </div>
+        </div>
       </div>
 
       <main class="content-area">
@@ -61,6 +89,7 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
           *ngIf="selectedContent && !showCompletionScreen && !selectedQuestion" 
           [content]="selectedContent" 
           [studentId]="studentId"
+          [courseId]="courseId"
           [isCompleted]="completedContentIds.has(selectedContent.id)"
           [isLastItem]="checkIsLastItem()"
           (progressUpdated)="onContentCompleted($event)"
@@ -145,6 +174,10 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
     .bar { height: 4px; background: var(--border); border-radius: 2px; margin-bottom: 4px; overflow: hidden; }
     .fill { height: 100%; background: var(--success); }
     
+    .sidebar-tabs { display: flex; border-bottom: 1px solid var(--border); padding: 0 1rem; }
+    .sidebar-tabs button { flex: 1; padding: 0.75rem; border: none; background: transparent; color: var(--text-muted); font-size: 0.85rem; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; border-bottom: 2px solid transparent; }
+    .sidebar-tabs button.active { color: var(--primary); border-bottom-color: var(--primary); }
+
     .topics-nav { flex: 1; overflow-y: auto; padding: 1rem; }
     .topic-header { display: flex; align-items: center; gap: 10px; padding: 0.8rem; font-weight: 600; font-size: 0.9rem; color: var(--text-main); }
     .topic-header.locked { color: var(--text-muted); opacity: 0.6; }
@@ -178,6 +211,35 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
     .btn-finish-course:hover {
       background: rgba(16, 185, 129, 0.2);
       border-color: var(--success);
+    }
+
+    .confirm-finish-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 0.5rem;
+      background: rgba(37, 99, 235, 0.05);
+      border-radius: 8px;
+      border: 1px dashed var(--primary);
+    }
+    .confirm-finish-group span { font-size: 0.75rem; font-weight: 600; color: var(--primary); }
+    .btn-confirm-yes {
+      padding: 4px 10px;
+      background: var(--success);
+      color: white;
+      border: none;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      cursor: pointer;
+    }
+    .btn-confirm-no {
+      padding: 4px 10px;
+      background: var(--border);
+      color: var(--text-main);
+      border: none;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      cursor: pointer;
     }
     
     .content-area { flex: 1; padding: 2rem; overflow-y: auto; display: flex; flex-direction: column; }
@@ -219,6 +281,19 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
     .completion-screen p { color: var(--text-muted); font-size: 1.1rem; margin-bottom: 2rem; }
     .mt-4 { margin-top: 1.5rem; }
     
+    .resources-tab { flex: 1; overflow-y: auto; padding: 1.5rem; }
+    .empty-resources { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; text-align: center; color: var(--text-muted); opacity: 0.7; }
+    .empty-resources p { margin-top: 1rem; font-size: 0.85rem; padding: 0 1rem; }
+    
+    .resource-list { display: flex; flex-direction: column; gap: 0.75rem; }
+    .resource-item { display: flex; align-items: center; gap: 12px; padding: 1rem; background: var(--bg-main); border: 1px solid var(--border); border-radius: 12px; text-decoration: none; color: var(--text-main); transition: all 0.2s; }
+    .resource-item:hover { border-color: var(--primary); background: white; transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+    .res-info { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+    .res-name { font-size: 0.85rem; font-weight: 600; }
+    .res-meta { font-size: 0.7rem; color: var(--text-muted); }
+    .dl-icon { color: var(--text-muted); opacity: 0.5; }
+    .resource-item:hover .dl-icon { color: var(--primary); opacity: 1; }
+
     .btn-primary { 
       background: var(--primary); 
       color: white; 
@@ -251,6 +326,8 @@ export class CoursePlayerComponent implements OnInit {
   courseId = '';
   courseTitle = 'Carregando...';
   topics: any[] = [];
+  courseAttachments: any[] = [];
+  activeSidebarTab: 'aulas' | 'recursos' = 'aulas';
   selectedContent: any = null;
   selectedQuestion: any = null;
   overallProgress = 0;
@@ -258,8 +335,8 @@ export class CoursePlayerComponent implements OnInit {
   answeredQuestionIds: Set<string> = new Set();
   studentId = '';
   showCompletionScreen = false;
+  completedCount = 0;
   totalContents = 0;
-
   // Quiz state
   selectedAlternativeId: string | null = null;
   quizAnswered = false;
@@ -306,6 +383,7 @@ export class CoursePlayerComponent implements OnInit {
         return topic;
       });
       this.courseTitle = data[0]?.courses?.titulo || 'Curso';
+      this.courseAttachments = data[0]?.courses?.anexos || [];
       await this.loadProgress();
       this.tryDeepLinkContent();
     });
@@ -315,27 +393,46 @@ export class CoursePlayerComponent implements OnInit {
     return new Promise(resolve => {
       if (!this.studentId || this.topics.length === 0) { resolve(); return; }
 
-      const allContentIds: string[] = [];
+      const lessonIds: string[] = [];
+      const questionIds: string[] = [];
+      
       this.topics.forEach(t => {
         if (t.course_contents) {
           t.course_contents.forEach((cc: any) => {
-            if ((!cc.tipo || cc.tipo === 'conteudo') && cc.contents) {
-              allContentIds.push(cc.contents.id);
+            if (cc.tipo === 'questao') {
+              if (cc.questions?.id) questionIds.push(cc.questions.id);
+            } else {
+              if (cc.contents?.id) lessonIds.push(cc.contents.id);
             }
           });
         }
       });
 
-      if (allContentIds.length === 0) { resolve(); return; }
+      const allActivityIds = [...lessonIds, ...questionIds];
+      if (allActivityIds.length === 0) { resolve(); return; }
 
-      this.progressService.getCourseProgress(this.studentId, allContentIds).subscribe(async progressData => {
+      this.progressService.getCourseProgress(this.studentId, lessonIds, this.courseId).subscribe(async progressData => {
         const fromDb = new Set<string>(
           progressData.filter(p => p.status === 'CONCLUIDO').map(p => p.id_conteudo)
         );
         // MERGE: keep any optimistically-added IDs even if the DB write hasn't committed yet
         this.completedContentIds = new Set([...fromDb, ...this.completedContentIds]);
-        this.totalContents = allContentIds.length;
-        const newProgress = Math.round((this.completedContentIds.size / this.totalContents) * 100);
+        
+        // Also sync answeredQuestionIds if they are in the progress list
+        fromDb.forEach(id => {
+          // If this ID belongs to a question, mark it as answered too
+          this.topics.forEach(topic => {
+            topic.course_contents?.forEach((cc: any) => {
+              if (cc.tipo === 'questao' && cc.questions?.id === id) {
+                this.answeredQuestionIds.add(id);
+              }
+            });
+          });
+        });
+
+        this.totalContents = allActivityIds.length;
+        const totalCompleted = this.completedContentIds.size + this.answeredQuestionIds.size;
+        const newProgress = this.totalContents > 0 ? Math.min(100, Math.round((totalCompleted / this.totalContents) * 100)) : 0;
 
         if (newProgress === 100 && this.overallProgress < 100) {
           this.overallProgress = 100;
@@ -440,6 +537,15 @@ export class CoursePlayerComponent implements OnInit {
     this.quizAnswered = true;
     this.answeredQuestionIds.add(this.selectedQuestion.id);
     this.persistAnsweredQuestions();
+
+    // Sincroniza com o banco de dados
+    this.progressService.updateProgress({
+      id_aluno: this.studentId,
+      id_conteudo: this.selectedQuestion.id,
+      id_curso: this.courseId,
+      status: 'CONCLUIDO',
+      porcentagem_concluida: 100
+    });
   }
 
   /** Optimistically mark a content as complete in the sidebar immediately */
@@ -510,11 +616,28 @@ export class CoursePlayerComponent implements OnInit {
     if (!confirm('Deseja marcar todas as aulas como concluídas e gerar seu certificado?')) return;
     
     try {
+      this.toastService.info('Processando conclusão do curso...');
       const success = await this.progressService.completeAllCourseContent(this.studentId, this.courseId);
+      
       if (success) {
+        // Marcar tudo localmente para refletir na UI imediatamente
+        this.topics.forEach(t => {
+          t.course_contents?.forEach((cc: any) => {
+            const id = cc.tipo === 'questao' ? cc.questions?.id : cc.contents?.id;
+            if (id) {
+              this.completedContentIds.add(id);
+              if (cc.tipo === 'questao') {
+                this.answeredQuestionIds.add(id);
+              }
+            }
+          });
+        });
+        
+        this.persistAnsweredQuestions();
         this.overallProgress = 100;
         await this.loadProgress();
         this.showCompletionScreen = true;
+        this.toastService.success('Curso concluído com sucesso!');
       } else {
         this.toastService.error('Não foi possível finalizar o curso no momento.');
       }
@@ -522,6 +645,20 @@ export class CoursePlayerComponent implements OnInit {
       console.error('Erro ao finalizar curso:', e);
       this.toastService.error('Ocorreu um erro ao tentar concluir o curso.');
     }
+  }
+
+  private async _getAllContentIds(): Promise<string[]> {
+    const allIds: string[] = [];
+    this.topics.forEach(t => {
+      if (t.course_contents) {
+        t.course_contents.forEach((cc: any) => {
+          if ((!cc.tipo || cc.tipo === 'conteudo') && cc.contents) {
+            allIds.push(cc.contents.id);
+          }
+        });
+      }
+    });
+    return allIds;
   }
 
   goToCertificates() {

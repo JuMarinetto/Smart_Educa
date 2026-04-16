@@ -1,6 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { SupabaseService } from './supabase.service';
-import { Course, Topic } from '../models/course.model';
+import { Course, Topic, CourseAttachment } from '../models/course.model';
 import { from, map } from 'rxjs';
 
 @Injectable({
@@ -75,6 +75,7 @@ export class CourseService {
         .from('topics')
         .select(`
           *,
+          courses:id_curso (*),
           course_contents (
             *,
             contents (*),
@@ -240,6 +241,62 @@ export class CourseService {
       return { error: null };
     } catch (error: any) {
       console.error('Error in saveCourseStructure:', error);
+      return { error };
+    }
+  }
+
+  // ---- Anexos de Curso ----
+
+  async uploadAttachment(courseId: string, file: File, currentAttachments: CourseAttachment[] = []) {
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Date.now()}.${fileExt}`;
+      const filePath = `${courseId}/${fileName}`;
+
+      const { data, error: uploadError } = await this.supabase.storage
+        .from('course-attachments')
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = this.supabase.storage
+        .from('course-attachments')
+        .getPublicUrl(filePath);
+
+      const newAttachment: CourseAttachment = {
+        name: file.name,
+        url: publicUrl,
+        size: file.size,
+        type: file.type
+      };
+
+      const updatedAttachments = [...currentAttachments, newAttachment];
+
+      return await this.updateCourse(courseId, { anexos: updatedAttachments });
+    } catch (error: any) {
+      console.error('Error uploading attachment:', error);
+      return { error };
+    }
+  }
+
+  async deleteAttachment(courseId: string, attachment: CourseAttachment, currentAttachments: CourseAttachment[]) {
+    try {
+      // Extract file path from URL (Assuming format /storage/v1/object/public/course-attachments/COURSE_ID/FILE_NAME)
+      const urlParts = attachment.url.split('/');
+      const fileName = urlParts[urlParts.length - 1];
+      const filePath = `${courseId}/${fileName}`;
+
+      const { error: deleteError } = await this.supabase.storage
+        .from('course-attachments')
+        .remove([filePath]);
+
+      if (deleteError) throw deleteError;
+
+      const updatedAttachments = currentAttachments.filter(a => a.url !== attachment.url);
+
+      return await this.updateCourse(courseId, { anexos: updatedAttachments });
+    } catch (error: any) {
+      console.error('Error deleting attachment:', error);
       return { error };
     }
   }

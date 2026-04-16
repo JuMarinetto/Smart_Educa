@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { LucideAngularModule } from 'lucide-angular';
 import { CourseService } from '../../../core/services/course.service';
+import { ProgressService } from '../../../core/services/progress.service';
 import { AssessmentService } from '../../../core/services/assessment.service';
 import { Assessment } from '../../../core/models/assessment.model';
 import { AuthService } from '../../../core/services/auth.service';
@@ -53,7 +54,7 @@ import { forkJoin } from 'rxjs';
             <lucide-icon name="TrendingUp" size="20" style="color:#ec4899"></lucide-icon>
           </div>
           <div class="stat-info">
-            <span class="stat-value">0</span>
+            <span class="stat-value">{{ inProgressCount }}</span>
             <span class="stat-label">Em Progresso</span>
           </div>
         </div>
@@ -62,7 +63,7 @@ import { forkJoin } from 'rxjs';
             <lucide-icon name="Award" size="20" style="color:#06b6d4"></lucide-icon>
           </div>
           <div class="stat-info">
-            <span class="stat-value">0</span>
+            <span class="stat-value">{{ completedCount }}</span>
             <span class="stat-label">Concluídos</span>
           </div>
         </div>
@@ -100,9 +101,9 @@ import { forkJoin } from 'rxjs';
               </div>
               <div class="card-progress">
                 <div class="progress-track">
-                  <div class="progress-fill" style="width: 0%;"></div>
+                  <div class="progress-fill" [style.width]="(courseProgress[course.id] || 0) + '%'"></div>
                 </div>
-                <span class="progress-text">0%</span>
+                <span class="progress-text">{{ courseProgress[course.id] || 0 }}%</span>
               </div>
             </div>
           </div>
@@ -428,10 +429,14 @@ export class StudentDashboardComponent implements OnInit {
   private courseService = inject(CourseService);
   private assessmentService = inject(AssessmentService);
   private authService = inject(AuthService);
+  private progressService = inject(ProgressService);
 
   courses: any[] = [];
   recommendedCourses: any[] = [];
   assessments: Assessment[] = [];
+  courseProgress: { [key: string]: number } = {};
+  completedCount = 0;
+  inProgressCount = 0;
 
   private gradients = [
     'linear-gradient(135deg, #8b5cf6, #6366f1)',
@@ -453,6 +458,11 @@ export class StudentDashboardComponent implements OnInit {
         const enrolledIds = new Set((mine as any[]).map((c: any) => c.id));
         this.recommendedCourses = (all as any[])
           .filter((c: any) => c.status === 'Ativo' && !enrolledIds.has(c.id));
+        
+        // Carrega o progresso real para cada curso
+        this.courses.forEach(course => {
+          this.loadProgressForCourse(course.id, studentId);
+        });
       });
     } else {
       this.courseService.getCourses().subscribe(data => {
@@ -465,9 +475,40 @@ export class StudentDashboardComponent implements OnInit {
     });
   }
 
+  loadProgressForCourse(courseId: string, studentId: string) {
+    this.courseService.getCourseStructure(courseId).subscribe(topics => {
+      let allContentIds: string[] = [];
+      topics.forEach((t: any) => {
+        if (t.course_contents) {
+          t.course_contents.forEach((c: any) => {
+            if ((!c.tipo || c.tipo === 'conteudo') && c.contents) {
+              allContentIds.push(c.contents.id);
+            }
+          });
+        }
+      });
+
+      if (allContentIds.length > 0) {
+        this.progressService.getCourseProgress(studentId, allContentIds, courseId).subscribe(progressData => {
+          const completedCountInCourse = progressData.filter(p => p.status === 'CONCLUIDO').length;
+          const pct = Math.round((completedCountInCourse / allContentIds.length) * 100);
+          this.courseProgress[courseId] = pct;
+          
+          if (pct === 100) {
+            this.completedCount++;
+          } else if (pct > 0) {
+            this.inProgressCount++;
+          }
+        });
+      } else {
+        // Cursos sem aulas mas com inscriçao sao possivelmente novos ou baseados em testes
+        this.courseProgress[courseId] = 0;
+      }
+    });
+  }
+
   get studentName(): string {
     const nome = this.authService.getLoggedProfile()?.nome || 'Aluno';
-    // Usa só o primeiro nome para não ficar longo
     return nome.split(' ')[0];
   }
 

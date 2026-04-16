@@ -5,6 +5,7 @@ export interface Content {
   descricao: string;
   conteudo_html?: string;
   documento_url?: string;
+  video_url?: string;
   versao: number;
   is_latest: boolean;
   created_at: string;

@@ -245,7 +245,7 @@ export class StudentMyCoursesComponent implements OnInit {
       });
 
       if (allContentIds.length > 0) {
-        this.progressService.getCourseProgress(studentId, allContentIds).subscribe(progressData => {
+        this.progressService.getCourseProgress(studentId, allContentIds, courseId).subscribe(progressData => {
           const completedCount = progressData.filter(p => p.status === 'CONCLUIDO').length;
           this.courseProgress[courseId] = Math.round((completedCount / allContentIds.length) * 100);
         });
