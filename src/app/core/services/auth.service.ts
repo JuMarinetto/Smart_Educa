@@ -21,6 +21,8 @@ export class AuthService {
    *       o armazenamento de senhas em texto puro no banco.
    */
   async loginByEmail(email: string, senha: string): Promise<Profile | null> {
+    console.log('[Auth] Tentando login para:', email.trim().toLowerCase());
+
     const { data, error } = await this.supabase
       .from('profiles')
       .select('*')
@@ -29,13 +31,26 @@ export class AuthService {
       .eq('ativo', true)
       .single();
 
-    if (error || !data) {
+    if (error) {
+      // Log detalhado para diagnóstico — remover após corrigir
+      console.error('[Auth] Erro Supabase:', {
+        code: error.code,
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+      });
+      return null;
+    }
+
+    if (!data) {
+      console.warn('[Auth] Nenhum perfil encontrado para as credenciais fornecidas.');
       return null;
     }
 
     // ✅ SEGURANÇA: Remove a senha antes de persistir no storage
     const { senha: _senha, ...safeProfile } = data as any;
     localStorage.setItem(this.STORAGE_KEY, JSON.stringify(safeProfile));
+    console.log('[Auth] Login bem-sucedido, perfil:', safeProfile.perfil);
     return safeProfile as Profile;
   }
 
