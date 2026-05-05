@@ -149,9 +149,9 @@ import { Question, Alternative } from '../../../core/models/question.model';
             </div>
             
             <div class="form-group">
-              <label>Link do YouTube (Opcional)</label>
+              <label>Link do Vídeo (YouTube ou Vimeo)</label>
               <input type="text" [(ngModel)]="contentForm.video_url" name="video_url" 
-                     placeholder="Ex: https://www.youtube.com/watch?v=...">
+                     placeholder="Ex: https://vimeo.com/123456789 ou https://youtu.be/...">
               <small class="hint">Se preenchido, um botão de vídeo será exibido para os alunos.</small>
             </div>
             
@@ -504,15 +504,25 @@ export class ContentsComponent implements OnInit {
   }
 
   insertVideo() {
-    const embedCode = prompt('Cole o código de incorporação (iframe) do YouTube ou URL:', '');
+    const embedCode = prompt('Cole o código de incorporação (iframe) ou URL (YouTube/Vimeo):', '');
     if (embedCode) {
       let finalEmbed = embedCode;
+      
       if (embedCode.includes('youtube.com/watch?v=')) {
         const videoId = embedCode.split('v=')[1]?.split('&')[0];
         finalEmbed = `<iframe src="https://www.youtube.com/embed/${videoId}" allowfullscreen></iframe>`;
       } else if (embedCode.includes('youtu.be/')) {
         const videoId = embedCode.split('youtu.be/')[1]?.split('?')[0];
         finalEmbed = `<iframe src="https://www.youtube.com/embed/${videoId}" allowfullscreen></iframe>`;
+      } else if (embedCode.includes('vimeo.com/')) {
+        // Suporte simples para extrair ID do Vimeo em colagem direta de URL
+        const vimeoMatch = embedCode.match(/vimeo\.com\/(?:video\/)?(\d+)(?:\/([a-z0-9]+))?/i);
+        if (vimeoMatch) {
+          const id = vimeoMatch[1];
+          const hash = vimeoMatch[2];
+          const src = `https://player.vimeo.com/video/${id}${hash ? '?h=' + hash : ''}`;
+          finalEmbed = `<iframe src="${src}" allowfullscreen></iframe>`;
+        }
       }
 
       const textarea = this.editorTextarea.nativeElement;
@@ -561,6 +571,17 @@ export class ContentsComponent implements OnInit {
     if (!this.contentForm.titulo_tema || !this.contentForm.descricao) {
       this.showError = true;
       return;
+    }
+
+    // Validação básica de URL de vídeo
+    if (this.contentForm.video_url) {
+      const url = this.contentForm.video_url;
+      const isYoutube = /youtube\.com|youtu\.be/.test(url);
+      const isVimeo = /vimeo\.com/.test(url);
+      if (!isYoutube && !isVimeo) {
+        this.toastService.error('URL de vídeo inválida. Use links do YouTube ou Vimeo.');
+        return;
+      }
     }
 
     const payload = {

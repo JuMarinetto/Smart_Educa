@@ -6,6 +6,7 @@ import { ProgressService } from '../../../core/services/progress.service';
 import { DomSanitizer, SafeHtml, SafeResourceUrl } from '@angular/platform-browser';
 import { ToastService } from '../../../shared/components/toast/toast.service';
 import { UiModalComponent } from '../../../shared/components/ui-modal/ui-modal.component';
+import { VideoService, VideoProvider } from '../../../core/services/video.service';
 
 @Component({
   selector: 'app-lesson-viewer',
@@ -23,17 +24,17 @@ import { UiModalComponent } from '../../../shared/components/ui-modal/ui-modal.c
 
       <div class="lesson-body" [innerHTML]="safeContent"></div>
 
-      <!-- YouTube Video Section -->
+      <!-- Video Section (Dynamic Provider) -->
       <div class="video-section" *ngIf="content.video_url">
-        <div class="video-card">
+        <div class="video-card" [class.is-vimeo]="videoProvider === 'vimeo'">
           <div class="video-icon">
-            <lucide-icon name="Youtube" size="32"></lucide-icon>
+            <lucide-icon [name]="videoProvider === 'vimeo' ? 'Video' : 'Youtube'" size="32"></lucide-icon>
           </div>
           <div class="video-info">
             <h3>Vídeo Complementar</h3>
-            <p>Assista a explicação em vídeo sobre este tema.</p>
+            <p>Assista a explicação em vídeo no {{ videoProvider === 'vimeo' ? 'Vimeo' : 'YouTube' }}.</p>
           </div>
-          <button class="btn-video" (click)="openVideoModal()">
+          <button class="btn-video" (click)="openVideoModal()" [class.is-vimeo]="videoProvider === 'vimeo'">
             <lucide-icon name="Play" size="18"></lucide-icon>
             Assistir Vídeo
           </button>
@@ -83,6 +84,12 @@ import { UiModalComponent } from '../../../shared/components/ui-modal/ui-modal.c
     .btn-video { display: flex; align-items: center; gap: 8px; background: #ff0000; color: white; padding: 0.7rem 1.25rem; border-radius: 8px; font-weight: 600; border: none; cursor: pointer; transition: all 0.2s; }
     .btn-video:hover { background: #cc0000; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(255, 0, 0, 0.2); }
 
+    /* Vimeo Styles */
+    .video-card.is-vimeo:hover { border-color: #1ab7ea; background: rgba(26, 183, 234, 0.02); }
+    .video-card.is-vimeo .video-icon { background: rgba(26, 183, 234, 0.1); color: #1ab7ea; }
+    .btn-video.is-vimeo { background: #1ab7ea; }
+    .btn-video.is-vimeo:hover { background: #159fd1; box-shadow: 0 4px 12px rgba(26, 183, 234, 0.2); }
+
     .video-modal-container { width: 100%; aspect-ratio: 16 / 9; background: #000; border-radius: 8px; overflow: hidden; }
     .video-modal-container iframe { width: 100%; height: 100%; border: none; }
 
@@ -102,10 +109,15 @@ export class LessonViewerComponent implements OnInit, OnChanges {
   private progressService = inject(ProgressService);
   private sanitizer = inject(DomSanitizer);
   private toastService = inject(ToastService);
+  private videoService = inject(VideoService);
 
   safeContent: SafeHtml = '';
   isVideoModalOpen = false;
   saving = false;
+
+  get videoProvider(): VideoProvider {
+    return this.videoService.detectProvider(this.content?.video_url || '');
+  }
 
   ngOnChanges(changes: SimpleChanges) {
     // Re-initialise content whenever the @Input changes (including first change)
@@ -137,18 +149,7 @@ export class LessonViewerComponent implements OnInit, OnChanges {
   }
 
   getSafeVideoUrl(): SafeResourceUrl {
-    const url = this.content?.video_url || '';
-    let videoId = '';
-
-    if (url.includes('v=')) {
-      videoId = url.split('v=')[1]?.split('&')[0];
-    } else if (url.includes('youtu.be/')) {
-      videoId = url.split('youtu.be/')[1]?.split('?')[0];
-    } else if (url.includes('embed/')) {
-      videoId = url.split('embed/')[1]?.split('?')[0];
-    }
-
-    const embedUrl = `https://www.youtube.com/embed/${videoId}?autoplay=1`;
+    const embedUrl = this.videoService.getEmbedUrl(this.content?.video_url || '');
     return this.sanitizer.bypassSecurityTrustResourceUrl(embedUrl);
   }
 
